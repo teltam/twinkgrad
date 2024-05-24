@@ -10,104 +10,133 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::value::Value;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use crate::value::{special_add, special_mul, special_tanh, Value};
 
     #[test]
-    fn test_exp() {
-        let a = Value::new_v(10.);
-        let b = Value::new_v(-15.);
-        let c = Value::new_v(2.);
-        let d = Value::new_v(3.);
+    // fn test_exp() {
+    //     let a = Value::new_v(10.);
+    //     let b = Value::new_v(-15.);
+    //     let c = Value::new_v(2.);
+    //     let d = Value::new_v(3.);
+    //
+    //     let exp = a * b + c / d;
+    //     assert_eq!(exp.data, -149.33333);
+    //
+    //     let a = Value::new_v(10.);
+    //     let b = Value::new_v(-15.);
+    //
+    //     let exp = a + b;
+    //     assert_eq!(exp.data, -5.);
+    //     assert_eq!(exp._op, "+".to_string());
+    // }
 
-        let exp = a * b + c / d;
-        assert_eq!(exp.data, -149.33333);
-
-        let a = Value::new_v(10.);
-        let b = Value::new_v(-15.);
-
-        let exp = a + b;
-        assert_eq!(exp.data, -5.);
-        assert_eq!(exp._op, "+".to_string());
-    }
-
-    #[test]
-    fn test_eq() {
-        let em_op = "".to_string();
-
-        let child1 = Value::new_v(10.);
-        let child2 = Value::new_v(10.);
-        let a = Value::new_op(3., vec![child1], em_op.clone());
-        let b = Value::new_op(3., vec![child2], em_op.clone());
-
-        assert_eq!(a.data, b.data);
-
-        // let child1 = Value::new_v(7.);
-        // let child2 = Value::new_v(8.);
-        // let a = Value { data: 3., _grad: 0., _prev: vec![ child1 ], _op: em_op.clone()};
-        // let b = Value { data: 3., _grad: 0., _prev: vec![ child2 ], _op: em_op.clone()};
-        // assert_ne!(a, b);
-
-        // let child1 = Value::new_v(8.);
-        // let child2 = Value::new_v(8.);
-        // let a = Value { data: 3., _grad: 0., _prev: vec![ child1 ], _op: em_op.clone()};
-        // let b = Value { data: 3., _grad: 0., _prev: vec![ child2 ], _op: em_op.clone()};
-        // this won't work for now but let's assume it does.
-        // assert_ne!(a, b);
-    }
+    // #[test]
+    // fn test_eq() {
+    //     let em_op = "".to_string();
+    //
+    //     let child1 = Value::new_v(10.);
+    //     let child2 = Value::new_v(10.);
+    //     let a = Value::new_op(3., vec![child1], em_op.clone());
+    //     let b = Value::new_op(3., vec![child2], em_op.clone());
+    //
+    //     assert_eq!(a.data, b.data);
+    //
+    //     // let child1 = Value::new_v(7.);
+    //     // let child2 = Value::new_v(8.);
+    //     // let a = Value { data: 3., _grad: 0., _prev: vec![ child1 ], _op: em_op.clone()};
+    //     // let b = Value { data: 3., _grad: 0., _prev: vec![ child2 ], _op: em_op.clone()};
+    //     // assert_ne!(a, b);
+    //
+    //     // let child1 = Value::new_v(8.);
+    //     // let child2 = Value::new_v(8.);
+    //     // let a = Value { data: 3., _grad: 0., _prev: vec![ child1 ], _op: em_op.clone()};
+    //     // let b = Value { data: 3., _grad: 0., _prev: vec![ child2 ], _op: em_op.clone()};
+    //     // this won't work for now but let's assume it does.
+    //     // assert_ne!(a, b);
+    // }
 
     #[test]
     fn neuron() {
-        let x1 = Value::new_v(2.0);
-        let x2 = Value::new_v(0.0);
+        let x1 = Rc::new(RefCell::new(Value::new_v(3.0)));
+        let x2 = Rc::new(RefCell::new(Value::new_v(0.5)));
 
-        let w1 = Value::new_v(-3.0);
-        let w2 = Value::new_v(1.0);
+        let w1 = Rc::new(RefCell::new(Value::new_v(-3.0)));
+        let w2 = Rc::new(RefCell::new(Value::new_v(1.0)));
 
-        let b = Value::new_v(8.0);
+        let b = Rc::new(RefCell::new(Value::new_v(8.0)));
 
-        let l1 = x1*w1;
-        let l2 = x2*w2;
+        let l1 = special_mul(x1.clone(), w1.clone());
+        let l2 = special_mul(x2.clone(), w2.clone());
 
-        let la = l1 + l2;
+        let la = special_add(l1.clone(), l2.clone());
 
-        let n = la + b;
+        let n = special_add(la, b.clone());
 
-        let o = n.tanh();
+        let o = special_tanh(n.clone());
 
-        assert_eq!(o.data, 0.9640129);
+        assert_eq!(n.borrow().data, -0.5);
+        assert_eq!(o.borrow().data, -0.4620764);
     }
 
     #[test]
     fn nueron_grad() {
-        let x1 = Value::new_v(2.0);
-        let x2 = Value::new_v(0.0);
+        let x1 = Rc::new(RefCell::new(Value::new_v(2.0)));
+        let x2 = Rc::new(RefCell::new(Value::new_v(0.0)));
 
-        let w1 = Value::new_v(-3.0);
-        let w2 = Value::new_v(1.0);
+        let w1 = Rc::new(RefCell::new(Value::new_v(-3.0)));
+        let w2 = Rc::new(RefCell::new(Value::new_v(1.0)));
 
-        let b = Value::new_v(6.8813735870195432);
+        let b = Rc::new(RefCell::new(Value::new_v(6.8813735870195432)));
 
-        let l1 = x1*w1;
-        let l2 = x2*w2;
+        let l1 = special_mul(x1.clone(), w1.clone());
+        let l2 = special_mul(x2.clone(), w2.clone());
 
-        let la = l1 + l2;
+        let la = special_add(l1.clone(), l2.clone());
 
-        let mut n = la + b;
+        let n = special_add(la.clone(), b.clone());
 
-        // let mut o = n.tanh();
-
-        // assert_eq!(o.data, 0.707061);
+        let o = special_tanh(n.clone());
 
 
-        // o._grad = 1.;
-        //
-        // match o._backward {
-        //     f1  => {}
-        // }
-        // assert_eq!(o.data, 1.)
+        o.borrow_mut()._grad = 1.;
 
-        n._grad = 1.;
-        (n._backward)();
-        assert_eq!(n.data, 1.);
+        /**
+        o.grad = 1
+
+        n.grad == 0.5 (or rounded)
+
+        x1w1x2w2.gra = 0.5 // la
+        b.grad = 0.5
+
+        x1w1 = 0.5 // l1
+        x2w2 = 0.5  // l2
+
+        x2.grad = w2.data * x2w2.grad = 0.5
+        w2.grad = x2.data * x2w2.grad = 0
+
+        x1.grad = w1.data * x1w1.grad = -1.5
+        w1.grad = x1.data * x1w1.grad = 1
+        **/
+
+        o.borrow_mut()._backward();
+        assert_eq!(n.borrow()._grad, 0.50006473);
+
+        n.borrow_mut()._backward();
+        assert_eq!(la.borrow()._grad, 0.50006473);
+        assert_eq!(b.borrow()._grad, 0.50006473);
+
+        la.borrow_mut()._backward();
+        assert_eq!(l1.borrow()._grad, 0.50006473);
+        assert_eq!(l2.borrow()._grad,  0.50006473);
+
+        l1.borrow_mut()._backward();
+        assert_eq!(x1.borrow()._grad, -1.5001942);
+        assert_eq!(w1.borrow()._grad, 1.0001295);
+
+        l2.borrow_mut()._backward();
+        assert_eq!(x2.borrow()._grad, 0.50006473);
+        assert_eq!(w2.borrow()._grad, 0.);
     }
 }
