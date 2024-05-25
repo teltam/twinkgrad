@@ -194,7 +194,6 @@ mod tests {
 
         o.borrow_mut()._grad = 1.;
 
-        // _backward2(o.clone());
         backward(o.clone());
 
         assert_eq!(n.clone().borrow()._grad, 0.50006473);

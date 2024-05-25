@@ -177,32 +177,6 @@ fn add_backward2(slf: Rc<RefCell<Value<f32>>>) {
     slf.borrow()._prev[1].borrow_mut()._grad = 1. * slf.borrow()._grad;
 }
 
-pub fn special_sub(a: Rc<RefCell<Value<f32>>>, b: Rc<RefCell<Value<f32>>>) -> Value<f32> {
-    let mut nodes = Vec::new();
-
-    let sum = a.borrow_mut().data - b.borrow_mut().data;
-
-    nodes.push(a.clone());
-    nodes.push(b.clone());
-
-    let mut out = Value::new_op(
-        sum,
-        nodes,
-        "-".to_string(),
-    );
-
-    out._process = sub_backward;
-    out._process2 = sub_backward2;
-
-    return out;
-}
-
-fn sub_backward(slf: &mut Value<f32>) {
-    println!("{}", slf._grad);
-    slf._prev[0].borrow_mut()._grad = 1. * slf._grad;
-    slf._prev[1].borrow_mut()._grad = -1. * slf._grad;
-}
-
 fn sub_backward2(slf: Rc<RefCell<Value<f32>>>) {
     println!("{}", slf.borrow()._grad);
     slf.borrow_mut()._prev[0].borrow_mut()._grad = 1. * slf.borrow()._grad;
@@ -246,34 +220,6 @@ fn mul_backward2(slf: Rc<RefCell<Value<f32>>>) {
         slf_borrow._prev[0].borrow_mut().data * slf_borrow._grad;
 }
 
-
-pub fn special_div(a: Rc<RefCell<Value<f32>>>, b: Rc<RefCell<Value<f32>>>)
-                   ->  Rc<RefCell<Value<f32>>> {
-    let mut nodes = Vec::new();
-
-    let sum = a.borrow_mut().data / b.borrow_mut().data;
-
-    nodes.push(a.clone());
-    nodes.push(b.clone());
-
-    let mut out = Value::new_op(
-        sum,
-        nodes,
-        "/".to_string(),
-    );
-
-    out._process = div_backward;
-    out._process2 = div_backward2;
-
-    return Rc::new(RefCell::new(out));
-}
-
-fn div_backward(slf: &mut Value<f32>) {
-    println!("{}", slf._grad);
-    slf._prev[0].borrow_mut()._grad = slf._prev[1].borrow_mut().data * slf._grad;
-    slf._prev[1].borrow_mut()._grad = slf._prev[0].borrow_mut().data * slf._grad;
-}
-
 fn div_backward2(slf: Rc<RefCell<Value<f32>>>) {
     println!("{}", slf.borrow()._grad);
     slf.borrow_mut()._prev[0].borrow_mut()._grad =
@@ -308,32 +254,6 @@ fn tanh_backward2(slf: Rc<RefCell<Value<f32>>>) {
     let g = (1. - f32::powf(slf.borrow().data, 2.)) * slf.borrow()._grad;
 
     slf.borrow_mut()._prev[0].borrow_mut()._grad = g;
-}
-
-pub fn special_pow(a: Rc<RefCell<Value<f32>>>, b: Rc<RefCell<Value<f32>>>)
-                   ->  Rc<RefCell<Value<f32>>> {
-
-    let mut nodes = Vec::new();
-
-    let pow = f32::powf(a.borrow_mut().data, b.borrow_mut().data);
-
-    nodes.push(a.clone());
-    nodes.push(b.clone());
-
-    let mut out = Value::new_op(
-        pow,
-        nodes,
-        "**".to_string(),
-    );
-
-    out._process = pow_backward;
-    out._process2 = pow_backward2;
-
-    return Rc::new(RefCell::new(out));
-}
-
-fn pow_backward(slf: &mut Value<f32>) {
-    slf._prev[0].borrow_mut()._grad = (1. - f32::powf(slf.data, 2.)) * slf._grad
 }
 
 fn pow_backward2(slf: Rc<RefCell<Value<f32>>>) {
