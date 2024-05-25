@@ -1,9 +1,10 @@
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct Value<T: Copy>
 {
+    pub _label: String,
     pub data: T,
 
     pub _grad: T,
@@ -27,12 +28,15 @@ impl Value<f32> {
             data: 0., _grad: 0., _prev: vec![], _op: "".to_string(), _process: empty,
             _process2: empty3,
             _backward: empty2,
+
+            _label: "".to_string(),
         }
     }
 
     pub fn new_v(val: f32) -> Self {
         let mut v: Value<f32> = Value::new();
         v.data = val;
+        v._op = "leaf".to_string();
         v
     }
 
@@ -49,13 +53,33 @@ impl Value<f32> {
     }
 }
 
-pub fn _backward2(slf: Rc<RefCell<Value<f32>>>) {
-    // let topo = &mut Vec::new();
-    // let visited = &mut Vec::new();
-
-    // without the clone and borrowing here seems to be an issue down the line.
-
+pub fn backward(slf: Rc<RefCell<Value<f32>>>) {
     // (slf.clone().borrow_mut()._process2)(slf.clone());
+    // println!("backward for {}", slf.borrow()._label.to_string());
+
+    let mut topo = Vec::new();
+    let mut visited = Vec::new();
+    topo_sort(slf, &mut topo, &mut visited);
+
+    for node in topo.iter().rev() {
+        // println!("node label {}", node.borrow()._label.to_string());
+        // for k in &node.clone().borrow()._prev {
+        //     println!("      child label {}", k.borrow()._label.to_string());
+        //
+        // }
+        println!("backward for {}", node.borrow()._label.to_string());
+        _backward2(node.clone());
+    }
+
+}
+
+pub fn _backward2(slf: Rc<RefCell<Value<f32>>>) {
+    // (slf.clone().borrow_mut()._process2)(slf.clone());
+    // println!("backward for {}", slf.borrow()._label.to_string());
+
+    let op = slf.borrow()._op.to_string();
+    let node_label = slf.borrow()._label.to_string();
+
     if slf.borrow()._op == "tanh" {
         tanh_backward2(slf.clone());
     } else if slf.borrow()._op == "**" {
@@ -68,11 +92,28 @@ pub fn _backward2(slf: Rc<RefCell<Value<f32>>>) {
         add_backward2(slf.clone());
     } else if slf.borrow()._op == "-" {
         sub_backward2(slf.clone());
+    } else if slf.borrow()._op == "tanh" {
+        tanh_backward2(slf.clone());
+    } else if slf.borrow()._op == "leaf" {
+        // leaf node
+        return;
     } else {
-        panic!("unsupported op");
+        panic!("unsupported op node_label: {}, op: {}", node_label, op);
     }
 
-    // topo_sort(slf, topo, visited);
+    // let mut topo = Vec::new();
+    // let mut visited = Vec::new();
+    // topo_sort(slf, &mut topo, &mut visited);
+    //
+    // for node in topo {
+    //     // println!("node label {}", node.borrow()._label.to_string());
+    //     // for k in &node.clone().borrow()._prev {
+    //     //     println!("      child label {}", k.borrow()._label.to_string());
+    //     //
+    //     // }
+    //     println!("backward for {}", node.borrow()._label.to_string());
+    //     // _backward2(node.clone());
+    // }
 }
 
 pub fn topo_sort(
@@ -80,20 +121,26 @@ pub fn topo_sort(
     topo: &mut Vec<Rc<RefCell<Value<f32>>>>,
     visited: &mut Vec<Rc<RefCell<Value<f32>>>>) {
 
-    // for node in visited.iter() {
-    //     if node.borrow().data == slf.borrow().data {
-    //         return;
-    //     }
-    // }
+    let slf_label= &slf.borrow()._label;
 
-    // visited.push(slf.clone());
+    // let slf_data = slf.borrow().data;
+    // let slf_lab= slf.borrow().data;
+    // let slf_label = slf_ref._label;
 
-    // for child in &slf.borrow()._prev {
-    //     topo_sort(child.clone(), topo, visited);
-    // }
+    for node in visited.iter() {
+        if node.borrow()._label.eq(slf_label) {
+            return;
+        }
+    }
+
+    visited.push(slf.clone());
+
+    for child in &slf.clone().borrow()._prev {
+        topo_sort(child.clone(), topo, visited);
+    }
 
     // After visiting all predecessors, add this node to the topological sort
-    // topo.push(slf.clone());
+    topo.push(slf.clone());
 }
 
 // Operations
@@ -125,8 +172,9 @@ fn add_backward(slf: &mut Value<f32>) {
 }
 
 fn add_backward2(slf: Rc<RefCell<Value<f32>>>) {
-    slf.borrow_mut()._prev[0].borrow_mut()._grad = 1. * slf.borrow()._grad;
-    slf.borrow_mut()._prev[1].borrow_mut()._grad = 1. * slf.borrow()._grad;
+    println!("{}", slf.borrow()._grad);
+    slf.borrow()._prev[0].borrow_mut()._grad = 1. * slf.borrow()._grad;
+    slf.borrow()._prev[1].borrow_mut()._grad = 1. * slf.borrow()._grad;
 }
 
 pub fn special_sub(a: Rc<RefCell<Value<f32>>>, b: Rc<RefCell<Value<f32>>>) -> Value<f32> {
@@ -189,11 +237,13 @@ fn mul_backward(slf: &mut Value<f32>) {
 }
 
 fn mul_backward2(slf: Rc<RefCell<Value<f32>>>) {
-    println!("{}", slf.borrow()._grad);
-    slf.borrow_mut()._prev[0].borrow_mut()._grad =
-        slf.borrow_mut()._prev[1].borrow_mut().data * slf.borrow()._grad;
-    slf.borrow_mut()._prev[1].borrow_mut()._grad =
-        slf.borrow_mut()._prev[0].borrow_mut().data * slf.borrow()._grad;
+    let slf_borrow = slf.borrow();
+
+    slf_borrow._prev[0].borrow_mut()._grad =
+        slf_borrow._prev[1].borrow_mut().data * slf_borrow._grad;
+
+    slf.borrow()._prev[1].borrow_mut()._grad =
+        slf_borrow._prev[0].borrow_mut().data * slf_borrow._grad;
 }
 
 

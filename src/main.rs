@@ -12,7 +12,7 @@ fn main() {
 mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
-    use crate::value::{_backward2, special_add, special_mul, special_tanh, Value};
+    use crate::value::{_backward2, backward, special_add, special_mul, special_tanh, Value};
 
     // #[test]
     // fn test_exp() {
@@ -99,26 +99,7 @@ mod tests {
 
         let o = special_tanh(n.clone());
 
-
         o.borrow_mut()._grad = 1.;
-
-        /**
-        o.grad = 1
-
-        n.grad == 0.5 (or rounded)
-
-        x1w1x2w2.gra = 0.5 // la
-        b.grad = 0.5
-
-        x1w1 = 0.5 // l1
-        x2w2 = 0.5  // l2
-
-        x2.grad = w2.data * x2w2.grad = 0.5
-        w2.grad = x2.data * x2w2.grad = 0
-
-        x1.grad = w1.data * x1w1.grad = -1.5
-        w1.grad = x1.data * x1w1.grad = 1
-        **/
 
         o.borrow_mut()._backward();
         assert_eq!(n.borrow()._grad, 0.50006473);
@@ -150,46 +131,28 @@ mod tests {
 
         let b = Rc::new(RefCell::new(Value::new_v(6.8813735870195432)));
 
-        let mut l1 = special_mul(x1.clone(), w1.clone());
-        let mut l2 = special_mul(x2.clone(), w2.clone());
+        let l1 = special_mul(x1.clone(), w1.clone());
+        let l2 = special_mul(x2.clone(), w2.clone());
 
-        let mut la = special_add(l1.clone(), l2.clone());
+        let la = special_add(l1.clone(), l2.clone());
 
-        let mut n = special_add(la.clone(), b.clone());
+        let n = special_add(la.clone(), b.clone());
 
-        let mut o = special_tanh(n.clone());
+        let o = special_tanh(n.clone());
 
 
         o.borrow_mut()._grad = 1.;
-
-        /**
-        o.grad = 1
-
-        n.grad == 0.5 (or rounded)
-
-        x1w1x2w2.gra = 0.5 // la
-        b.grad = 0.5
-
-        x1w1 = 0.5 // l1
-        x2w2 = 0.5  // l2
-
-        x2.grad = w2.data * x2w2.grad = 0.5
-        w2.grad = x2.data * x2w2.grad = 0
-
-        x1.grad = w1.data * x1w1.grad = -1.5
-        w1.grad = x1.data * x1w1.grad = 1
-        **/
 
         _backward2(o.clone());
         assert_eq!(n.clone().borrow()._grad, 0.50006473);
 
         _backward2(n.clone());
-        assert_eq!(la.borrow()._grad, 0.50006473);
-        assert_eq!(b.borrow()._grad, 0.50006473);
+        assert_eq!(la.clone().borrow()._grad, 0.50006473);
+        assert_eq!(b.clone().borrow()._grad, 0.50006473);
 
         _backward2(la.clone());
-        assert_eq!(l1.borrow()._grad, 0.50006473);
-        assert_eq!(l2.borrow()._grad,  0.50006473);
+        assert_eq!(l1.clone().borrow()._grad, 0.50006473);
+        assert_eq!(l2.clone().borrow()._grad,  0.50006473);
 
         _backward2(l1.clone());
         assert_eq!(x1.borrow()._grad, -1.5001942);
@@ -199,4 +162,54 @@ mod tests {
         assert_eq!(x2.borrow()._grad, 0.50006473);
         assert_eq!(w2.borrow()._grad, 0.);
     }
+
+    #[test]
+    fn neuron_grad_topo() {
+        let x1 = Rc::new(RefCell::new(Value::new_v(2.0)));
+        x1.borrow_mut()._label = "x1".to_string();
+        let x2 = Rc::new(RefCell::new(Value::new_v(0.0)));
+        x2.borrow_mut()._label = "x2".to_string();
+
+        let w1 = Rc::new(RefCell::new(Value::new_v(-3.0)));
+        w1.borrow_mut()._label = "w1".to_string();
+        let w2 = Rc::new(RefCell::new(Value::new_v(1.0)));
+        w2.borrow_mut()._label = "w2".to_string();
+
+        let b = Rc::new(RefCell::new(Value::new_v(6.8813735870195432)));
+        b.borrow_mut()._label = "b".to_string();
+
+        let l1 = special_mul(x1.clone(), w1.clone());
+        l1.borrow_mut()._label = "l1".to_string();
+        let l2 = special_mul(x2.clone(), w2.clone());
+        l2.borrow_mut()._label = "l2".to_string();
+
+        let la = special_add(l1.clone(), l2.clone());
+        la.borrow_mut()._label = "la".to_string();
+
+        let n = special_add(la.clone(), b.clone());
+        n.borrow_mut()._label = "n".to_string();
+
+        let o = special_tanh(n.clone());
+        o.borrow_mut()._label = "o".to_string();
+
+        o.borrow_mut()._grad = 1.;
+
+        // _backward2(o.clone());
+        backward(o.clone());
+
+        assert_eq!(n.clone().borrow()._grad, 0.50006473);
+
+        assert_eq!(la.clone().borrow()._grad, 0.50006473);
+        assert_eq!(b.clone().borrow()._grad, 0.50006473);
+
+        assert_eq!(l1.clone().borrow()._grad, 0.50006473);
+        assert_eq!(l2.clone().borrow()._grad,  0.50006473);
+
+        assert_eq!(x1.borrow()._grad, -1.5001942);
+        assert_eq!(w1.borrow()._grad, 1.0001295);
+
+        assert_eq!(x2.borrow()._grad, 0.50006473);
+        assert_eq!(w2.borrow()._grad, 0.);
+    }
+
 }
