@@ -1,5 +1,5 @@
-mod value;
 mod graph;
+mod value;
 
 use value::Value;
 
@@ -11,9 +11,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use crate::value::{_backward2, backward, special_add, special_mul, special_tanh, Value};
     use std::cell::RefCell;
     use std::rc::Rc;
-    use crate::value::{_backward2, backward, special_add, special_mul, special_tanh, Value};
 
     #[test]
     fn neuron() {
@@ -57,7 +57,6 @@ mod tests {
 
         let o = special_tanh(n.clone());
 
-
         o.borrow_mut()._grad = 1.;
 
         _backward2(o.clone());
@@ -69,7 +68,7 @@ mod tests {
 
         _backward2(la.clone());
         assert_eq!(l1.clone().borrow()._grad, 0.50006473);
-        assert_eq!(l2.clone().borrow()._grad,  0.50006473);
+        assert_eq!(l2.clone().borrow()._grad, 0.50006473);
 
         _backward2(l1.clone());
         assert_eq!(x1.borrow()._grad, -1.5001942);
@@ -121,7 +120,7 @@ mod tests {
         assert_eq!(b.clone().borrow()._grad, 0.50006473);
 
         assert_eq!(l1.clone().borrow()._grad, 0.50006473);
-        assert_eq!(l2.clone().borrow()._grad,  0.50006473);
+        assert_eq!(l2.clone().borrow()._grad, 0.50006473);
 
         assert_eq!(x1.borrow()._grad, -1.5001942);
         assert_eq!(w1.borrow()._grad, 1.0001295);
@@ -163,7 +162,6 @@ mod tests {
         assert_eq!(a.borrow().data, 3.);
         assert_eq!(a.borrow()._grad, 6.);
     }
-
 
     #[test]
     fn grad_acc_bug3() {
@@ -239,7 +237,7 @@ mod tests {
         assert_eq!(b.clone().borrow()._grad, 0.50006473);
 
         assert_eq!(l1.clone().borrow()._grad, 0.50006473);
-        assert_eq!(l2.clone().borrow()._grad,  0.50006473);
+        assert_eq!(l2.clone().borrow()._grad, 0.50006473);
 
         assert_eq!(x1.borrow()._grad, -1.5001942);
         assert_eq!(w1.borrow()._grad, 1.0001295);
