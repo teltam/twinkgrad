@@ -1,4 +1,3 @@
-use crate::value::Ops;
 use std::borrow::Cow;
 
 #[derive(Clone)]
@@ -23,16 +22,28 @@ pub struct NodeRef {
     pub node_id: usize,
 }
 
+#[derive(Clone, Debug)]
+pub enum Ops {
+    TANH,
+    EXP,
+    DIV,
+    MUL,
+    ADD,
+    SUB,
+    LEAF,
+    EMPTY,
+}
+
 impl Node<f32> {
     pub fn new() -> Self {
-        return Node {
+        Node {
             data: 0.,
             grad: 0.,
             prev: vec![],
             op: Ops::EMPTY,
 
             label: Cow::from(""),
-        };
+        }
     }
 
     pub fn new_v(val: f32, label: String) -> Self {
@@ -69,7 +80,7 @@ impl Node<f32> {
 
 impl Graph<f32> {
     pub fn new() -> Self {
-        return Graph { nodes: vec![] };
+        Graph { nodes: vec![] }
     }
 }
 
@@ -77,9 +88,9 @@ impl Graph<f32> {
     pub fn add_val(&mut self, val: f32, label: String) -> NodeRef {
         self.nodes.push(Node::new_v(val, label));
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn add_val_prev(
@@ -91,9 +102,9 @@ impl Graph<f32> {
     ) -> NodeRef {
         self.nodes.push(Node::new_op(val, _prev, prev, op));
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn add_val_prev_l(
@@ -106,9 +117,9 @@ impl Graph<f32> {
     ) -> NodeRef {
         self.nodes.push(Node::new_op_l(val, _prev, prev, op, label));
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn get(&mut self, x: NodeRef) -> f32 {
@@ -141,9 +152,9 @@ impl Graph<f32> {
             label,
         );
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn sub(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
@@ -157,9 +168,9 @@ impl Graph<f32> {
             Ops::SUB,
         );
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn mul(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
@@ -173,9 +184,9 @@ impl Graph<f32> {
             Ops::MUL,
         );
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn div(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
@@ -189,9 +200,9 @@ impl Graph<f32> {
             Ops::DIV,
         );
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn pow(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
@@ -205,9 +216,9 @@ impl Graph<f32> {
             Ops::EXP,
         );
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn tanh(&mut self, x1: NodeRef) -> NodeRef {
@@ -217,9 +228,9 @@ impl Graph<f32> {
 
         self.add_val_prev(t, vec![x1.node_id], vec![x1], Ops::TANH);
 
-        return NodeRef {
+        NodeRef {
             node_id: self.nodes.len() - 1,
-        };
+        }
     }
 
     pub fn backward(&mut self) {
@@ -234,12 +245,12 @@ impl Graph<f32> {
             println!("{:?}, {:?}", ii, node);
 
             match &node.op {
-                Ops::TANH => self.tanh_backward(ii.clone()),
-                Ops::EXP => self.pow_backward(ii.clone()),
-                Ops::DIV => self.div_backward(ii.clone()),
-                Ops::MUL => self.mul_backward(ii.clone()),
-                Ops::ADD => self.add_backward(ii.clone()),
-                Ops::SUB => self.sub_backward(ii.clone()),
+                Ops::TANH => self.tanh_backward(ii),
+                Ops::EXP => self.pow_backward(ii),
+                Ops::DIV => self.div_backward(ii),
+                Ops::MUL => self.mul_backward(ii),
+                Ops::ADD => self.add_backward(ii),
+                Ops::SUB => self.sub_backward(ii),
                 Ops::LEAF => return,
                 Ops::EMPTY => {
                     panic!(
@@ -256,8 +267,8 @@ impl Graph<f32> {
     fn add_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
-        let c2 = node.prev.get(1).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
+        let c2 = node.prev.get(1).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let mut c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
@@ -272,8 +283,8 @@ impl Graph<f32> {
     fn sub_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
-        let c2 = node.prev.get(1).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
+        let c2 = node.prev.get(1).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let mut c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
@@ -288,8 +299,8 @@ impl Graph<f32> {
     fn mul_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
-        let c2 = node.prev.get(1).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
+        let c2 = node.prev.get(1).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let mut c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
@@ -304,8 +315,8 @@ impl Graph<f32> {
     fn div_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
-        let c2 = node.prev.get(1).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
+        let c2 = node.prev.get(1).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let mut c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
@@ -320,7 +331,7 @@ impl Graph<f32> {
     fn tanh_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
 
@@ -334,8 +345,8 @@ impl Graph<f32> {
     fn pow_backward(&mut self, i: usize) {
         let node = self.nodes.get(i).unwrap().clone();
 
-        let c1 = node.prev.get(0).unwrap().clone();
-        let c2 = node.prev.get(1).unwrap().clone();
+        let c1 = node.prev.get(0).unwrap();
+        let c2 = node.prev.get(1).unwrap();
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
@@ -379,42 +390,6 @@ mod tests {
 
     #[test]
     fn topo() {
-        let g = &mut Graph::new();
-
-        let x1 = g.add_val(2., "x1".to_string());
-        let x2 = g.add_val(0.0, "x2".to_string());
-
-        let w1 = g.add_val(-3., "w1".to_string());
-        let w2 = g.add_val(1., "w2".to_string());
-
-        let b = g.add_val(6.8813735870195432, "b".to_string());
-
-        let l1 = g.mul(x1, w1);
-        let l2 = g.mul(x2, w2);
-
-        let la = g.add(l1, l2, "la".to_string());
-
-        let n = g.add(la, b, "n".to_string());
-
-        let o = g.tanh(n);
-
-        g.set_grad(o, 1.);
-
-        g.backward();
-
-        assert_eq!(g.get_grad(n), 0.50006473);
-        assert_eq!(g.get_grad(la), 0.50006473);
-        assert_eq!(g.get_grad(b), 0.50006473);
-        assert_eq!(g.get_grad(l1), 0.50006473);
-        assert_eq!(g.get_grad(l2), 0.50006473);
-        assert_eq!(g.get_grad(x1), -1.5001942);
-        assert_eq!(g.get_grad(w1), 1.0001295);
-        assert_eq!(g.get_grad(x2), 0.50006473);
-        assert_eq!(g.get_grad(w2), 0.);
-    }
-
-    #[test]
-    fn topo_2() {
         let g = &mut Graph::new();
 
         let x1 = g.add_val(2., "x1".to_string());
