@@ -1,4 +1,9 @@
 use std::borrow::Cow;
+use std::iter::zip;
+use rand::{Rng, thread_rng};
+use crate::layer::Layer;
+use crate::mlp::MLP;
+use crate::neuron::Neuron;
 
 #[derive(Clone)]
 pub struct Graph<T> {
@@ -85,12 +90,29 @@ impl Graph<f32> {
 }
 
 impl Graph<f32> {
-    pub fn add_val(&mut self, val: f32, label: String) -> NodeRef {
+    pub fn add_val_l(&mut self, val: f32, label: String) -> NodeRef {
         self.nodes.push(Node::new_v(val, label));
 
         NodeRef {
             node_id: self.nodes.len() - 1,
         }
+    }
+
+    pub fn add_val(&mut self, val: f32) -> NodeRef {
+        self.nodes.push(Node::new_v(val, "".to_string()));
+
+        NodeRef {
+            node_id: self.nodes.len() - 1,
+        }
+    }
+
+    pub fn a_range(&mut self, l: u8) -> Vec<NodeRef> {
+        let mut res = vec!();
+        for i in 0..l {
+            res.push(self.add_val_l(f32::from(i), "".to_string()));
+        }
+
+        res
     }
 
     pub fn add_val_prev(
@@ -122,11 +144,89 @@ impl Graph<f32> {
         }
     }
 
-    pub fn get(&mut self, x: NodeRef) -> f32 {
-        let node_id = x.node_id;
+    pub fn neuron(&mut self, l: usize) -> Neuron {
+        let mut rng = thread_rng();
 
-        return self.nodes.get(node_id).unwrap().data;
+        let mut ws = vec!();
+        for _ in 0..l {
+            ws.push(
+                self.add_val_l(rng.gen::<f32>(), "w".to_string()));
+        }
+
+        let b = self.add_val_l(rng.gen::<f32>(), "b".to_string());
+
+        Neuron { ws, b, }
     }
+
+    pub fn neuron_ones(&mut self, l: usize) -> Neuron {
+        let mut ws = vec!();
+        for _ in 0..l {
+            ws.push(
+                self.add_val_l(1., "w".to_string()));
+        }
+
+        let b = self.add_val_l(1., "b".to_string());
+
+        Neuron { ws, b, }
+    }
+
+    pub fn layer(&mut self, lin: usize, out:usize) -> Layer {
+        let mut ls = vec!();
+        for _ in 0..out {
+            ls.push(self.neuron(lin));
+        }
+
+        Layer { ls }
+    }
+
+    pub fn layer_ones(&mut self, lin: usize, out:usize) -> Layer {
+        let mut ls = vec!();
+        for _ in 0..out {
+            ls.push(self.neuron_ones(lin));
+        }
+
+        Layer { ls }
+    }
+
+    pub fn mlp(&mut self, lin: usize, lout: Vec<usize>) -> MLP {
+        let mut dims = vec!(lin);
+        dims.extend(lout);
+
+        let mut res = vec!();
+
+        let len = dims.len();
+        let a = dims.clone();
+        let b = dims.clone();
+        for (i, j) in zip(&a[0..len-1], &b[1..len]) {
+            println!("MLP construction: {}, {}", i, j);
+            res.push(self.layer(*i, *j));
+        }
+
+        MLP { ls: res }
+    }
+
+    pub fn mlp_ones(&mut self, lin: usize, lout: Vec<usize>) -> MLP {
+        let mut dims = vec!(lin);
+        dims.extend(lout);
+
+        let mut res = vec!();
+
+        let len = dims.len();
+        let a = dims.clone();
+        let b = dims.clone();
+        for (i, j) in zip(&a[0..len-1], &b[1..len]) {
+            println!("MLP construction: {}, {}", i, j);
+            res.push(self.layer_ones(*i, *j));
+        }
+
+        MLP { ls: res }
+    }
+
+    pub fn get(&mut self, x: NodeRef) -> f32 {
+    let node_id = x.node_id;
+
+    return self.nodes.get(node_id).unwrap().data;
+}
 
     pub fn get_grad(&mut self, x: NodeRef) -> f32 {
         let node_id = x.node_id;
@@ -232,6 +332,67 @@ impl Graph<f32> {
             node_id: self.nodes.len() - 1,
         }
     }
+
+    pub fn apply_neuron(&mut self, n: &Neuron, x: &Vec<NodeRef>) -> NodeRef {
+        // TODO assert lens of x and w.
+        // TODO do we need to clean up a graph if we don't use?
+
+        let l = n.ws.len();
+        let mut res = n.b;
+        for i in 0..l {
+            let w_x_i = self.mul(n.ws[i], x[i]);
+            res = self.add(res, w_x_i, "w_x_i".to_string());
+        }
+
+        // println!("----");
+        // println!("one call res --- {:?}", self.get(res));
+        // let t = self.tanh(res);
+        // println!("one call res --- {:?}", self.get(t));
+        // println!("----");
+
+        println!("----");
+        for i in x {
+            println!("{:?}", self.get(*i));
+        }
+        println!("one call res --- {:?}", self.get(res));
+        println!("----");
+
+        return self.tanh(res);
+    }
+
+    pub fn apply_layer(&mut self, layer: &Layer, x: &Vec<NodeRef>) -> Vec<NodeRef> {
+        let l = layer.ls.len();
+
+        let mut res = vec!();
+
+        for i in 0..l {
+            let neuron= &layer.ls[i];
+            let act = self.apply_neuron(neuron, x);
+            res.push(act);
+        }
+
+        return res;
+    }
+
+    pub fn apply_mlp(&mut self, mlp: &MLP, x: &Vec<NodeRef>) -> Vec<Vec<NodeRef>> {
+        // TODO assert sizes are the same for first layer.
+        let l = mlp.ls.len();
+        println!("=== mlp layers {}", l);
+
+        let mut res = vec!();
+
+        res.push(x.clone());
+
+        for i in 0..l {
+            let layer = &mlp.ls[i];
+            let act = self.apply_layer(layer, res.last().unwrap());
+            res.push(act);
+        }
+
+        return res[1..res.len()].to_vec();
+    }
+
+    // ==== Backward methods ====
 
     pub fn backward(&mut self) {
         let node_list = self.nodes.clone();
@@ -367,13 +528,13 @@ mod tests {
     fn graph_op() {
         let g = &mut Graph::new();
 
-        let x1 = g.add_val(3., "x1".to_string());
-        let x2 = g.add_val(0.5, "x2".to_string());
+        let x1 = g.add_val_l(3., "x1".to_string());
+        let x2 = g.add_val_l(0.5, "x2".to_string());
 
-        let w1 = g.add_val(-3.0, "w1".to_string());
-        let w2 = g.add_val(1., "w2".to_string());
+        let w1 = g.add_val_l(-3.0, "w1".to_string());
+        let w2 = g.add_val_l(1., "w2".to_string());
 
-        let b = g.add_val(8., "b".to_string());
+        let b = g.add_val_l(8., "b".to_string());
 
         let l1 = g.mul(x1, w1);
         let l2 = g.mul(x2, w2);
@@ -392,13 +553,13 @@ mod tests {
     fn topo() {
         let g = &mut Graph::new();
 
-        let x1 = g.add_val(2., "x1".to_string());
-        let x2 = g.add_val(0.0, "x2".to_string());
+        let x1 = g.add_val_l(2., "x1".to_string());
+        let x2 = g.add_val_l(0.0, "x2".to_string());
 
-        let w1 = g.add_val(-3., "w1".to_string());
-        let w2 = g.add_val(1., "w2".to_string());
+        let w1 = g.add_val_l(-3., "w1".to_string());
+        let w2 = g.add_val_l(1., "w2".to_string());
 
-        let b = g.add_val(6.8813735870195432, "b".to_string());
+        let b = g.add_val_l(6.8813735870195432, "b".to_string());
 
         let l1 = g.mul(x1, w1);
         let l2 = g.mul(x2, w2);
@@ -422,5 +583,116 @@ mod tests {
         assert_eq!(g.get_grad(w1), 1.0001295);
         assert_eq!(g.get_grad(x2), 0.50006473);
         assert_eq!(g.get_grad(w2), 0.);
+    }
+
+    #[test]
+    fn neuron() {
+        let g = &mut Graph::new();
+
+        let neuron = &mut g.neuron_ones(3);
+
+        let mut x = &mut vec!();
+        for i in 0..3 {
+            x.push(g.add_val_l(f64::from(i) as f32, format!("x{}", i.to_string())));
+        }
+
+        let y = g.apply_neuron(neuron, x);
+
+        // this is not tanh(4) because tanh is using a lower precision for e.
+        assert_eq!(g.get(y), 0.99932873);
+    }
+
+    #[test]
+    fn layer() {
+        let g = &mut Graph::new();
+
+        let layer = &mut g.layer_ones(3, 4);
+
+        let x = &vec!(
+            g.add_val_l(2., "".to_string()),
+            g.add_val_l(3., "".to_string()),
+            g.add_val_l(-1., "".to_string()),
+        );
+
+        let y = g.apply_layer(layer, x);
+
+        println!("{:?}", y);
+
+        assert_eq!(g.get(y[0]), 0.9999091);
+        assert_eq!(g.get(y[1]), 0.9999091);
+        assert_eq!(g.get(y[2]), 0.9999091);
+        assert_eq!(g.get(y[3]), 0.9999091);
+    }
+
+    #[test]
+    fn mlp_one() {
+        let g = &mut Graph::new();
+
+        let mlp = &mut g.mlp_ones(3, vec![4]);
+
+        let x = &vec!(
+            g.add_val_l(2., "".to_string()),
+            g.add_val_l(3., "".to_string()),
+            g.add_val_l(-1., "".to_string()),
+        );
+
+        let y = g.apply_mlp(mlp, x);
+
+        assert_eq!(g.get(y[0][0]), 0.9999091);
+        assert_eq!(g.get(y[0][1]), 0.9999091);
+        assert_eq!(g.get(y[0][2]), 0.9999091);
+        assert_eq!(g.get(y[0][3]), 0.9999091);
+    }
+
+    #[test]
+    fn mlp_two() {
+        let g = &mut Graph::new();
+
+        let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
+
+        let x = &vec!(
+            g.add_val(2.), g.add_val(3.), g.add_val(-1.),
+        );
+
+        let y = g.apply_mlp(mlp, x);
+
+        println!("{:?}", y);
+
+        assert_eq!(g.get(y[0][0]), 0.9999091);
+        assert_eq!(g.get(y[0][1]), 0.9999091);
+        assert_eq!(g.get(y[0][2]), 0.9999091);
+        assert_eq!(g.get(y[0][3]), 0.9999091);
+
+        assert_eq!(g.get(y[1][0]), 0.99990904);
+        assert_eq!(g.get(y[1][1]), 0.99990904);
+        assert_eq!(g.get(y[1][2]), 0.99990904);
+
+        assert_eq!(y[2].len(), 1);
+        assert_eq!(g.get(y[2][0]), 0.9993284);
+    }
+
+    #[test]
+    fn loss() {
+        let g = &mut Graph::new();
+
+        let mlp = &mut g.mlp_ones(3, vec![4, 4, 1]);
+
+        let xs = &vec!(
+            vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
+            vec!(g.add_val(3.), g.add_val(-1.), g.add_val(0.5)),
+            vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
+            vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
+        );
+
+        let ys = &vec!(
+            g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+        );
+
+
+        let mut ypred = vec!();
+        for i in 0..4 {
+            ypred.push(g.apply_mlp(mlp, &xs[i]));
+        }
+        println!("{:?}", ypred[0]);
     }
 }
