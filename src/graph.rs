@@ -148,9 +148,8 @@ impl Graph<f32> {
         let mut rng = thread_rng();
 
         let mut ws = vec!();
-        for _ in 0..l {
-            ws.push(
-                self.add_val_l(rng.gen::<f32>(), "w".to_string()));
+        for i in 0..l {
+            ws.push(self.add_val_l(rng.gen::<f32>(), format!("w_{}", i)));
         }
 
         let b = self.add_val_l(rng.gen::<f32>(), "b".to_string());
@@ -160,9 +159,8 @@ impl Graph<f32> {
 
     pub fn neuron_ones(&mut self, l: usize) -> Neuron {
         let mut ws = vec!();
-        for _ in 0..l {
-            ws.push(
-                self.add_val_l(1., "w".to_string()));
+        for i in 0..l {
+            ws.push(self.add_val_l(1., format!("w_{}", i)));
         }
 
         let b = self.add_val_l(1., "b".to_string());
@@ -198,7 +196,6 @@ impl Graph<f32> {
         let a = dims.clone();
         let b = dims.clone();
         for (i, j) in zip(&a[0..len-1], &b[1..len]) {
-            println!("MLP construction: {}, {}", i, j);
             res.push(self.layer(*i, *j));
         }
 
@@ -215,7 +212,6 @@ impl Graph<f32> {
         let a = dims.clone();
         let b = dims.clone();
         for (i, j) in zip(&a[0..len-1], &b[1..len]) {
-            println!("MLP construction: {}, {}", i, j);
             res.push(self.layer_ones(*i, *j));
         }
 
@@ -341,21 +337,8 @@ impl Graph<f32> {
         let mut res = n.b;
         for i in 0..l {
             let w_x_i = self.mul(n.ws[i], x[i]);
-            res = self.add(res, w_x_i, "w_x_i".to_string());
+            res = self.add(res, w_x_i, format!("w_x_{}", i));
         }
-
-        // println!("----");
-        // println!("one call res --- {:?}", self.get(res));
-        // let t = self.tanh(res);
-        // println!("one call res --- {:?}", self.get(t));
-        // println!("----");
-
-        println!("----");
-        for i in x {
-            println!("{:?}", self.get(*i));
-        }
-        println!("one call res --- {:?}", self.get(res));
-        println!("----");
 
         return self.tanh(res);
     }
@@ -377,7 +360,6 @@ impl Graph<f32> {
     pub fn apply_mlp(&mut self, mlp: &MLP, x: &Vec<NodeRef>) -> Vec<Vec<NodeRef>> {
         // TODO assert sizes are the same for first layer.
         let l = mlp.ls.len();
-        println!("=== mlp layers {}", l);
 
         let mut res = vec!();
 
@@ -397,13 +379,15 @@ impl Graph<f32> {
     pub fn backward(&mut self) {
         let node_list = self.nodes.clone();
 
-        println!("{:?}", node_list);
+        // println!("----");
+        // for (i, node) in node_list.iter().enumerate() {
+        //     println!("{}, {:?}", i, node);
+        // }
+        // println!("----");
 
         // already topo sorted
         for (i, node) in node_list.iter().rev().enumerate() {
             let ii = node_list.len() - 1 - i;
-
-            println!("{:?}, {:?}", ii, node);
 
             match &node.op {
                 Ops::TANH => self.tanh_backward(ii),
@@ -412,17 +396,12 @@ impl Graph<f32> {
                 Ops::MUL => self.mul_backward(ii),
                 Ops::ADD => self.add_backward(ii),
                 Ops::SUB => self.sub_backward(ii),
-                Ops::LEAF => return,
+                Ops::LEAF => continue,
                 Ops::EMPTY => {
-                    panic!(
-                        "unsupported op node_label: {}, op: {:?}",
-                        node.label, node.op
-                    )
+                    panic!("unsupported op node_label: {}, op: {:?}", node.label, node.op)
                 }
             }
         }
-
-        self.nodes = node_list;
     }
 
     fn add_backward(&mut self, i: usize) {
@@ -522,6 +501,7 @@ impl Graph<f32> {
 
 #[cfg(test)]
 mod tests {
+    use std::iter::zip;
     use crate::graph::Graph;
 
     #[test]
@@ -600,6 +580,14 @@ mod tests {
 
         // this is not tanh(4) because tanh is using a lower precision for e.
         assert_eq!(g.get(y), 0.99932873);
+
+        g.set_grad(y, 1.);
+
+        g.backward();
+
+        println!("{:?}", g.nodes.get(12));
+
+        assert_eq!(g.nodes.get(12).unwrap().grad, 0.0013420582);
     }
 
     #[test]
@@ -675,7 +663,7 @@ mod tests {
     fn loss() {
         let g = &mut Graph::new();
 
-        let mlp = &mut g.mlp_ones(3, vec![4, 4, 1]);
+        let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
         let xs = &vec!(
             vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
@@ -684,15 +672,41 @@ mod tests {
             vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
         );
 
-        let ys = &vec!(
+        let ys = vec!(
             g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
         );
 
-
         let mut ypred = vec!();
-        for i in 0..4 {
+        for i in 0..xs.len() {
             ypred.push(g.apply_mlp(mlp, &xs[i]));
         }
-        println!("{:?}", ypred[0]);
+
+        for i in 0..xs.len() {
+            assert_eq!(ypred[i][2].len(), 1);
+        }
+
+        assert_eq!(g.get(ypred[0][2][0]), 0.9993284);
+        assert_eq!(g.get(ypred[1][2][0]), 0.9993284);
+        assert_eq!(g.get(ypred[2][2][0]), 0.9993284);
+        assert_eq!(g.get(ypred[3][2][0]), 0.99932826);
+
+        let ypreds = vec!(
+            ypred[0][2][0], ypred[1][2][0], ypred[2][2][0], ypred[3][2][0]
+        );
+
+        let mut loss = g.add_val(0.);
+        for (i, j) in zip(ypreds, ys) {
+            let a = g.sub(i, j);
+            let b = g.add_val(2.);
+            let c = g.pow(a, b);
+            loss = g.add(loss, c, "".to_string());
+        }
+
+        g.set_grad(loss, 1.);
+
+        g.backward();
+
+        println!("{:?}", g.get_grad(mlp.ls[0].ls[0].ws[0]));
+        assert_eq!(g.get_grad(mlp.ls[0].ls[0].ws[0]), 3.778835e-8);
     }
 }
