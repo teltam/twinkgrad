@@ -1,3 +1,4 @@
+use std::iter::zip;
 use crate::graph::Graph;
 
 mod graph;
@@ -8,19 +9,47 @@ mod mlp;
 fn main() {
     let g = &mut Graph::new();
 
-    let n = g.neuron(10);
+    let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
-    let x = g.a_range(10);
+    let xs = &vec!(
+        vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
+        vec!(g.add_val(3.), g.add_val(-1.), g.add_val(0.5)),
+        vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
+        vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
+    );
 
-    let res = g.apply_neuron(&n, &x);
+    for _ in 0..5 {
+        let ys = vec!(
+            g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+        );
 
-    println!("----\n {:?} ----\n", res);
+        let mut ypred = vec!();
+        for i in 0..xs.len() {
+            ypred.push(g.apply_mlp(mlp, &xs[i]));
+        }
 
-    let g = &mut Graph::new();
-    let l = g.layer(2, 3);
-    let x = &g.a_range(2);
-    let res = g.apply_layer(&l, x);
-    println!("{:?}", res);
+        let ypreds = vec!(
+            ypred[0][2][0], ypred[1][2][0], ypred[2][2][0], ypred[3][2][0]
+        );
 
-    // let m = g.mlp(10, vec!(20, 25));
+        let mut loss = g.add_val(0.);
+
+        for (i, j) in zip(ypreds, ys) {
+            let a = g.sub(i, j);
+            let b = g.add_val(2.);
+            let c = g.pow(a, b);
+            loss = g.add(loss, c, "".to_string());
+        }
+
+        println!("loss: {:?}", g.get(loss));
+
+        g.set_grad(loss, 1.);
+        g.backward();
+
+        let params = mlp.parameters();
+        for param in params {
+            let new_data = g.get(param) + -1. * g.get_grad(param);
+            g.set_data(param, new_data);
+        }
+    }
 }
