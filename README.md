@@ -1,12 +1,13 @@
-use std::iter::zip;
-use crate::graph::Graph;
+# twinkgrad
+Inspired by Karpathy's micrograd, twinkgrad is micrograd in Rust. The interface is a little different from the python version
+given how python objects and dunder methods work. The main actor is the compute graph itself and all operation go through it.
 
-mod graph;
-mod neuron;
-mod layer;
-mod mlp;
+![](./spy.jpeg)
 
-fn main() {
+## Example
+
+1. Setup the compute graph,
+```rust
     let g = &mut Graph::new();
 
     let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
@@ -17,8 +18,10 @@ fn main() {
         vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
         vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
     );
+```
 
-    for _ in 0..10 {
+2. Setup the predictions and infer,
+```rust
         let ys = vec!(
             g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
         );
@@ -31,7 +34,10 @@ fn main() {
         let ypreds = vec!(
             ypred[0][0], ypred[1][0], ypred[2][0], ypred[3][0]
         );
+```
 
+3. Compute loss,
+```rust
         let mut loss = g.add_val(0.);
 
         for (i, j) in zip(ypreds, ys) {
@@ -42,19 +48,19 @@ fn main() {
         }
 
         println!("loss: {:?}", g.get(loss));
+```
 
-        let params = mlp.parameters();
-        for param in params {
-            g.set_grad(param, 0.);
-        }
-
+4. Perform grad,
+```rust
         g.set_grad(loss, 1.);
         g.backward();
+```
 
+5. Update params,
+```rust
         let params = mlp.parameters();
         for param in params {
-            let new_data = g.get(param) + -0.5 * g.get_grad(param);
+            let new_data = g.get(param) + -1. * g.get_grad(param);
             g.set_data(param, new_data);
         }
-    }
-}
+```

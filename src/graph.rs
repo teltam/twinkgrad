@@ -396,7 +396,7 @@ impl Graph<f64> {
         return res;
     }
 
-    pub fn apply_mlp(&mut self, mlp: &MLP, x: &Vec<NodeRef>) -> Vec<Vec<NodeRef>> {
+    pub fn apply_mlp(&mut self, mlp: &MLP, x: &Vec<NodeRef>) -> Vec<NodeRef> {
         // TODO assert sizes are the same for first layer.
         let l = mlp.ls.len();
 
@@ -412,7 +412,8 @@ impl Graph<f64> {
             res.push(act);
         }
 
-        return res[1..res.len()].to_vec();
+        // return res[1..res.len()].to_vec();
+        return res.last().unwrap().clone();
     }
 
     // ==== Backward methods ====
@@ -544,7 +545,6 @@ impl Graph<f64> {
 
 #[cfg(test)]
 mod tests {
-    use std::iter::zip;
     use crate::graph::Graph;
 
     #[test]
@@ -569,7 +569,7 @@ mod tests {
         let o = g.tanh(n);
 
         assert_eq!(g.get(n), -0.5);
-        assert_eq!(g.get(o), -0.4620764);
+        assert_eq!(g.get(o), -0.4620763851533083);
     }
 
     #[test]
@@ -597,14 +597,14 @@ mod tests {
 
         g.backward();
 
-        assert_eq!(g.get_grad(n), 0.50006473);
-        assert_eq!(g.get_grad(la), 0.50006473);
-        assert_eq!(g.get_grad(b), 0.50006473);
-        assert_eq!(g.get_grad(l1), 0.50006473);
-        assert_eq!(g.get_grad(l2), 0.50006473);
-        assert_eq!(g.get_grad(x1), -1.5001942);
-        assert_eq!(g.get_grad(w1), 1.0001295);
-        assert_eq!(g.get_grad(x2), 0.50006473);
+        assert_eq!(g.get_grad(n), 0.5000646207423279);
+        assert_eq!(g.get_grad(la), 0.5000646207423279);
+        assert_eq!(g.get_grad(b), 0.5000646207423279);
+        assert_eq!(g.get_grad(l1), 0.5000646207423279);
+        assert_eq!(g.get_grad(l2), 0.5000646207423279);
+        assert_eq!(g.get_grad(x1), -1.500193862226984);
+        assert_eq!(g.get_grad(w1), 1.0001292414846559);
+        assert_eq!(g.get_grad(x2), 0.5000646207423279);
         assert_eq!(g.get_grad(w2), 0.);
     }
 
@@ -622,7 +622,7 @@ mod tests {
         let y = g.apply_neuron(neuron, x);
 
         // this is not tanh(4) because tanh is using a lower precision for e.
-        assert_eq!(g.get(y), 0.99932873);
+        assert_eq!(g.get(y), 0.9993287433665291);
 
         g.set_grad(y, 1.);
 
@@ -630,7 +630,7 @@ mod tests {
 
         println!("{:?}", g.nodes.get(12));
 
-        assert_eq!(g.nodes.get(12).unwrap().grad, 0.0013420582);
+        assert_eq!(g.nodes.get(12).unwrap().grad, 0.0013420626814738545);
     }
 
     #[test]
@@ -649,10 +649,10 @@ mod tests {
 
         println!("{:?}", y);
 
-        assert_eq!(g.get(y[0]), 0.9999091);
-        assert_eq!(g.get(y[1]), 0.9999091);
-        assert_eq!(g.get(y[2]), 0.9999091);
-        assert_eq!(g.get(y[3]), 0.9999091);
+        assert_eq!(g.get(y[0]), 0.9999091100771555);
+        assert_eq!(g.get(y[1]), 0.9999091100771555);
+        assert_eq!(g.get(y[2]), 0.9999091100771555);
+        assert_eq!(g.get(y[3]), 0.9999091100771555);
     }
 
     #[test]
@@ -669,10 +669,10 @@ mod tests {
 
         let y = g.apply_mlp(mlp, x);
 
-        assert_eq!(g.get(y[0][0]), 0.9999091);
-        assert_eq!(g.get(y[0][1]), 0.9999091);
-        assert_eq!(g.get(y[0][2]), 0.9999091);
-        assert_eq!(g.get(y[0][3]), 0.9999091);
+        assert_eq!(g.get(y[0]), 0.9999091100771555);
+        assert_eq!(g.get(y[1]), 0.9999091100771555);
+        assert_eq!(g.get(y[2]), 0.9999091100771555);
+        assert_eq!(g.get(y[3]), 0.9999091100771555);
     }
 
     #[test]
@@ -689,17 +689,7 @@ mod tests {
 
         println!("{:?}", y);
 
-        assert_eq!(g.get(y[0][0]), 0.9999091);
-        assert_eq!(g.get(y[0][1]), 0.9999091);
-        assert_eq!(g.get(y[0][2]), 0.9999091);
-        assert_eq!(g.get(y[0][3]), 0.9999091);
-
-        assert_eq!(g.get(y[1][0]), 0.99990904);
-        assert_eq!(g.get(y[1][1]), 0.99990904);
-        assert_eq!(g.get(y[1][2]), 0.99990904);
-
-        assert_eq!(y[2].len(), 1);
-        assert_eq!(g.get(y[2][0]), 0.9993284);
+        assert_eq!(g.get(y[0]), 0.9993283770985828);
     }
 
     #[test]
@@ -724,14 +714,14 @@ mod tests {
             ypred.push(g.apply_mlp(mlp, &xs[i]));
         }
 
-        for i in 0..xs.len() {
-            assert_eq!(ypred[i][2].len(), 1);
-        }
+        // for i in 0..xs.len() {
+        //     assert_eq!(ypred[i][2].len(), 1);
+        // }
 
-        assert_eq!(g.get(ypred[0][2][0]), 0.9993284);
-        assert_eq!(g.get(ypred[1][2][0]), 0.9993284);
-        assert_eq!(g.get(ypred[2][2][0]), 0.9993284);
-        assert_eq!(g.get(ypred[3][2][0]), 0.99932826);
+        assert_eq!(g.get(ypred[0][0]), 0.9993283770985828);
+        assert_eq!(g.get(ypred[1][0]), 0.9993283719860206);
+        assert_eq!(g.get(ypred[2][0]), 0.9993283719860206);
+        assert_eq!(g.get(ypred[3][0]), 0.999328255237185);
     }
 
     #[test]
@@ -751,12 +741,12 @@ mod tests {
 
         for i in 0..2 {
             let ypred = g.apply_mlp(mlp, &xs);
-            println!("ypred {:?}", g.get_node(ypred[0][2]));
+            println!("ypred {:?}", g.get_node(ypred[0]));
 
-            let a = g.sub(ys, ypred[0][2]);
+            let a = g.sub(ys, ypred[0]);
             let b = g.add_val(2.);
             loss = g.pow(a, b);
-            let k = g.get(ys) - g.get(ypred[0][2]);
+            let k = g.get(ys) - g.get(ypred[0]);
 
             g.set_grad(loss, 1.);
 
