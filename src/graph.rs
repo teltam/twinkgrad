@@ -39,7 +39,7 @@ pub enum Ops {
     EMPTY,
 }
 
-impl Node<f32> {
+impl Node<f64> {
     pub fn new() -> Self {
         Node {
             data: 0.,
@@ -51,30 +51,33 @@ impl Node<f32> {
         }
     }
 
-    pub fn new_v(val: f32, label: String) -> Self {
-        let mut n: Node<f32> = Node::new();
+    pub fn new_v(val: f64, label: String) -> Self {
+        let mut n: Node<f64> = Node::new();
+        // if (val.is_nan()) {
+        //     panic!();
+        // }
         n.data = val;
         n.op = Ops::LEAF;
         n.label = Cow::from(label);
         n
     }
 
-    pub fn new_op(val: f32, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops) -> Self {
-        let mut v: Node<f32> = Node::new();
+    pub fn new_op(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops) -> Self {
+        let mut v: Node<f64> = Node::new();
+        // if (val.is_nan()) {
+        //     panic!();
+        // }
         v.data = val;
         v.prev = prev;
         v.op = op;
         v
     }
 
-    pub fn new_op_l(
-        val: f32,
-        _prev: Vec<usize>,
-        prev: Vec<NodeRef>,
-        op: Ops,
-        label: String,
-    ) -> Self {
-        let mut v: Node<f32> = Node::new();
+    pub fn new_op_l(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops, label: String) -> Self {
+        // if (val.is_nan()) {
+        //     panic!();
+        // }
+        let mut v: Node<f64> = Node::new();
         v.data = val;
         v.prev = prev;
         v.op = op;
@@ -83,14 +86,14 @@ impl Node<f32> {
     }
 }
 
-impl Graph<f32> {
+impl Graph<f64> {
     pub fn new() -> Self {
         Graph { nodes: vec![] }
     }
 }
 
-impl Graph<f32> {
-    pub fn add_val_l(&mut self, val: f32, label: String) -> NodeRef {
+impl Graph<f64> {
+    pub fn add_val_l(&mut self, val: f64, label: String) -> NodeRef {
         self.nodes.push(Node::new_v(val, label));
 
         NodeRef {
@@ -98,7 +101,7 @@ impl Graph<f32> {
         }
     }
 
-    pub fn add_val(&mut self, val: f32) -> NodeRef {
+    pub fn add_val(&mut self, val: f64) -> NodeRef {
         self.nodes.push(Node::new_v(val, "".to_string()));
 
         NodeRef {
@@ -109,7 +112,7 @@ impl Graph<f32> {
     pub fn a_range(&mut self, l: u8) -> Vec<NodeRef> {
         let mut res = vec!();
         for i in 0..l {
-            res.push(self.add_val_l(f32::from(i), "".to_string()));
+            res.push(self.add_val_l(f64::from(i), "".to_string()));
         }
 
         res
@@ -117,7 +120,7 @@ impl Graph<f32> {
 
     pub fn add_val_prev(
         &mut self,
-        val: f32,
+        val: f64,
         _prev: Vec<usize>,
         prev: Vec<NodeRef>,
         op: Ops,
@@ -131,7 +134,7 @@ impl Graph<f32> {
 
     pub fn add_val_prev_l(
         &mut self,
-        val: f32,
+        val: f64,
         _prev: Vec<usize>,
         prev: Vec<NodeRef>,
         op: Ops,
@@ -149,10 +152,10 @@ impl Graph<f32> {
 
         let mut ws = vec!();
         for i in 0..l {
-            ws.push(self.add_val_l(rng.gen::<f32>(), format!("w_{}", i)));
+            ws.push(self.add_val_l(rng.gen::<f64>(), format!("w_{}", i)));
         }
 
-        let b = self.add_val_l(rng.gen::<f32>(), "b".to_string());
+        let b = self.add_val_l(rng.gen::<f64>(), "b".to_string());
 
         Neuron { ws, b, }
     }
@@ -218,22 +221,44 @@ impl Graph<f32> {
         MLP { ls: res }
     }
 
-    pub fn get(&mut self, x: NodeRef) -> f32 {
-    let node_id = x.node_id;
+    pub fn get(&mut self, x: NodeRef) -> f64 {
+        let node_id = x.node_id;
 
-    return self.nodes.get(node_id).unwrap().data;
-}
+        return self.nodes.get(node_id).unwrap().data;
+    }
 
-    pub fn get_grad(&mut self, x: NodeRef) -> f32 {
+    pub fn get_node(&mut self, x: NodeRef) -> Node<f64> {
+        let node_id = x.node_id;
+
+        return self.nodes.get(node_id).unwrap().clone();
+    }
+
+    pub fn get_node_vec(&mut self, x: Vec<NodeRef>) -> Vec<Node<f64>> {
+        let mut res = vec!();
+
+        for _x in x.iter() {
+            res.push(self.get_node(_x.clone()))
+        }
+
+        return res;
+    }
+
+    pub fn get_grad(&mut self, x: NodeRef) -> f64 {
         let node_id = x.node_id;
 
         return self.nodes.get(node_id).unwrap().grad;
     }
 
-    pub fn set_grad(&mut self, x: NodeRef, grad: f32) {
+    pub fn set_grad(&mut self, x: NodeRef, grad: f64) {
         let node_id = x.node_id;
 
         self.nodes.get_mut(node_id).unwrap().grad = grad;
+    }
+
+    pub fn set_data(&mut self, x: NodeRef, data: f64) {
+        let node_id = x.node_id;
+
+        self.nodes.get_mut(node_id).unwrap().data = data;
     }
 
     pub fn add(&mut self, x1: NodeRef, x2: NodeRef, label: String) -> NodeRef {
@@ -306,7 +331,7 @@ impl Graph<f32> {
         let a2 = self.nodes.get_mut(x2.node_id).unwrap().data;
 
         self.add_val_prev(
-            f32::powf(a1, a2),
+            f64::powf(a1, a2),
             vec![x1.node_id, x2.node_id],
             vec![x1, x2],
             Ops::EXP,
@@ -320,9 +345,13 @@ impl Graph<f32> {
     pub fn tanh(&mut self, x1: NodeRef) -> NodeRef {
         let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
 
-        let t = (f32::powf(2.718, 2. * a1) - 1.) / (f32::powf(2.718, 2. * a1) + 1.);
+        let t = (f64::powf(2.718, 2. * a1) - 1.) / (f64::powf(2.718, 2. * a1) + 1.);
 
         self.add_val_prev(t, vec![x1.node_id], vec![x1], Ops::TANH);
+
+        // if t.is_nan() {
+        //     println!("---- in tanh {:?}, {:?}, {}, {}", self.get_node(x1), t, (f64::powf(2.718, 2. * a1) - 1.), (f64::powf(2.718, 2. * a1) + 1.));
+        // }
 
         NodeRef {
             node_id: self.nodes.len() - 1,
@@ -338,7 +367,11 @@ impl Graph<f32> {
         for i in 0..l {
             let w_x_i = self.mul(n.ws[i], x[i]);
             res = self.add(res, w_x_i, format!("w_x_{}", i));
+            // if self.get(res).is_nan() {
+            //     println!("--- NAN applying neuron w, id, x id {:?}, {:?} {:?} {:?}", self.get(n.ws[i]), n.ws[i].node_id, self.get(x[i]), x[i].node_id);
+            // }
         }
+
 
         return self.tanh(res);
     }
@@ -350,6 +383,12 @@ impl Graph<f32> {
 
         for i in 0..l {
             let neuron= &layer.ls[i];
+
+            // let nodes = self.get_node_vec(x.clone());
+            // for node in nodes.iter() {
+            //     println!("----- apply layer would have nans {:?}", node);
+            // }
+
             let act = self.apply_neuron(neuron, x);
             res.push(act);
         }
@@ -367,7 +406,9 @@ impl Graph<f32> {
 
         for i in 0..l {
             let layer = &mlp.ls[i];
-            let act = self.apply_layer(layer, res.last().unwrap());
+            let last = res.last().unwrap();
+            // println!("----- last {:?} ", self.get_node_vec(last.clone()));
+            let act = self.apply_layer(layer, last);
             res.push(act);
         }
 
@@ -462,7 +503,7 @@ impl Graph<f32> {
         let mut c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
 
         c1_node.grad += (1. / c2_node.data) * node.grad;
-        c2_node.grad += (-c1_node.data / f32::powf(c2_node.data, 2.)) * node.grad;
+        c2_node.grad += (-c1_node.data / f64::powf(c2_node.data, 2.)) * node.grad;
 
         self.nodes[c1.node_id] = c1_node;
         self.nodes[c2.node_id] = c2_node;
@@ -475,11 +516,13 @@ impl Graph<f32> {
 
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
 
-        let g = (1. - f32::powf(node.data, 2.)) * node.grad;
+        let g = (1. - f64::powf(node.data, 2.)) * node.grad;
 
         c1_node.grad += g;
 
         self.nodes[c1.node_id] = c1_node;
+
+        // println!("tanh grad: {:?} {:?}", self.nodes[c1.node_id], g);
     }
 
     fn pow_backward(&mut self, i: usize) {
@@ -491,7 +534,7 @@ impl Graph<f32> {
         let mut c1_node = self.nodes.get_mut(c1.node_id).unwrap().clone();
         let c2_node = self.nodes.get_mut(c2.node_id).unwrap().clone();
 
-        let g = c2_node.data * f32::powf(c1_node.data, c2_node.data - 1.) * node.grad;
+        let g = c2_node.data * f64::powf(c1_node.data, c2_node.data - 1.) * node.grad;
 
         c1_node.grad += g;
 
@@ -573,7 +616,7 @@ mod tests {
 
         let mut x = &mut vec!();
         for i in 0..3 {
-            x.push(g.add_val_l(f64::from(i) as f32, format!("x{}", i.to_string())));
+            x.push(g.add_val_l(f64::from(i) as f64, format!("x{}", i.to_string())));
         }
 
         let y = g.apply_neuron(neuron, x);
@@ -689,24 +732,111 @@ mod tests {
         assert_eq!(g.get(ypred[1][2][0]), 0.9993284);
         assert_eq!(g.get(ypred[2][2][0]), 0.9993284);
         assert_eq!(g.get(ypred[3][2][0]), 0.99932826);
+    }
 
-        let ypreds = vec!(
-            ypred[0][2][0], ypred[1][2][0], ypred[2][2][0], ypred[3][2][0]
+    #[test]
+    fn loss_grad() {
+        let g = &mut Graph::new();
+
+        let mlp = &mut g.mlp_ones(3, vec![4, 1]);
+
+        let xs = vec!(
+            g.add_val_l(2., "x1".to_string()),
+            g.add_val_l(3., "x2".to_string()),
+            g.add_val_l(-1., "x3".to_string()));
+
+        let ys = g.add_val_l(1., "y1".to_string());
+
+        let mut loss;
+
+        for i in 0..2 {
+            let ypred = g.apply_mlp(mlp, &xs);
+            println!("ypred {:?}", g.get_node(ypred[0][2]));
+
+            let a = g.sub(ys, ypred[0][2]);
+            let b = g.add_val(2.);
+            loss = g.pow(a, b);
+            let k = g.get(ys) - g.get(ypred[0][2]);
+            // println!("ys, ypred {:?}, {:?}, ---> {}, {:?}", g.get_node(ys), g.get_node(ypred[0][2]), k, f64::powf(k, 2.));
+
+            g.set_grad(loss, 1.);
+
+            g.backward();
+
+            let total = g.nodes.len();
+            // for (i, node) in g.nodes.iter().rev().enumerate() {
+                // println!("print the nodes node id {}, {:?}", total - 1 - i, node)
+            // }
+            println!("loss {:?}", g.get(loss));
+            if i == 1 {
+                assert_eq!(g.get(loss), 0.);
+            }
+
+
+            for param in mlp.parameters() {
+                let data = g.get(param);
+                let new_data = data + -100000000. * g.get_grad(param);
+                g.set_data(param, new_data);
+            }
+        }
+    }
+
+    #[test]
+    fn fwd_back() {
+        let g = &mut Graph::new();
+
+        let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
+
+        let xs = &vec!(
+            vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
+            vec!(g.add_val(3.), g.add_val(-1.), g.add_val(0.5)),
+            vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
+            vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
         );
 
-        let mut loss = g.add_val(0.);
-        for (i, j) in zip(ypreds, ys) {
-            let a = g.sub(i, j);
-            let b = g.add_val(2.);
-            let c = g.pow(a, b);
-            loss = g.add(loss, c, "".to_string());
+        for _ in 0..10 {
+            let ys = vec!(
+                g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+            );
+
+            let mut ypred = vec!();
+            for i in 0..xs.len() {
+                ypred.push(g.apply_mlp(mlp, &xs[i]));
+            }
+
+            let ypreds = vec!(
+                ypred[0][2][0], ypred[1][2][0], ypred[2][2][0], ypred[3][2][0]
+            );
+
+            // for _y in ypreds.clone() {
+            //     println!("preds {:?}", g.get_node(_y));
+            // }
+
+            let mut loss = g.add_val(0.);
+
+            for (i, j) in zip(ypreds, ys) {
+                let a = g.sub(i, j);
+                let b = g.add_val(2.);
+                let c = g.pow(a, b);
+                loss = g.add(loss, c, "".to_string());
+            }
+
+            println!("loss: {:?}", g.get_node(loss));
+
+            g.set_grad(loss, 1.);
+            g.backward();
+
+            // println!("grad node {:?}", g.get_node(mlp.ls[0].ls[0].ws[0]));
+
+            let params = mlp.parameters();
+            for param in params {
+                // println!("before {:?}", g.get_node(param));
+                let new_data = g.get(param) + -1. * g.get_grad(param);
+                g.set_data(param, new_data);
+                // println!("after {:?}", g.get_node(param));
+            }
+
+            // println!("{:?}", g.get_grad(mlp.ls[0].ls[0].ws[0]));
         }
-
-        g.set_grad(loss, 1.);
-
-        g.backward();
-
-        println!("{:?}", g.get_grad(mlp.ls[0].ls[0].ws[0]));
-        assert_eq!(g.get_grad(mlp.ls[0].ls[0].ws[0]), 3.778835e-8);
     }
 }
