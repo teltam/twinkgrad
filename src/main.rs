@@ -18,11 +18,11 @@ fn main() {
         vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
     );
 
-    for _ in 0..10 {
-        let ys = vec!(
-            g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
-        );
+    let ys = vec!(
+        g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+    );
 
+    for _ in 0..42 {
         let mut ypred = vec!();
         for i in 0..xs.len() {
             ypred.push(g.apply_mlp(mlp, &xs[i]));
@@ -34,7 +34,7 @@ fn main() {
 
         let mut loss = g.add_val(0.);
 
-        for (i, j) in zip(ypreds, ys) {
+        for (i, j) in zip(ypreds, ys.clone()) {
             let a = g.sub(i, j);
             let b = g.add_val(2.);
             let c = g.pow(a, b);
@@ -56,5 +56,7 @@ fn main() {
             let new_data = g.get(param) + -0.5 * g.get_grad(param);
             g.set_data(param, new_data);
         }
+
+        println!("node count {}", g.nodes.len());
     }
 }
