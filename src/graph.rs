@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::iter::zip;
 use rand::{Rng, thread_rng};
+use crate::graph::NodeType::{ComputeNode, DataNode};
 use crate::layer::Layer;
 use crate::mlp::MLP;
 use crate::neuron::Neuron;
@@ -8,7 +9,12 @@ use crate::neuron::Neuron;
 #[derive(Clone)]
 pub struct Graph<T> {
     pub nodes: Vec<Node<T>>,
-    pub compute_nodes: Vec<Node<T>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NodeType {
+    DataNode,
+    ComputeNode,
 }
 
 #[derive(Clone, Debug)]
@@ -21,14 +27,18 @@ pub struct Node<T> {
     pub prev: Vec<NodeRef>,
 
     pub op: Ops,
+
+    pub node_type: NodeType,
 }
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeRef {
     pub node_id: usize,
+    pub node_type: NodeType,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum Ops {
     TANH,
     EXP,
@@ -49,10 +59,12 @@ impl Node<f64> {
             op: Ops::EMPTY,
 
             label: Cow::from(""),
+
+            node_type: DataNode,
         }
     }
 
-    pub fn new_v(val: f64, label: String) -> Self {
+    pub fn new_v(val: f64, label: String, node_type: NodeType) -> Self {
         let mut n: Node<f64> = Node::new();
         // if (val.is_nan()) {
         //     panic!();
@@ -60,10 +72,11 @@ impl Node<f64> {
         n.data = val;
         n.op = Ops::LEAF;
         n.label = Cow::from(label);
+        n.node_type = node_type;
         n
     }
 
-    pub fn new_op(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops) -> Self {
+    pub fn new_op(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops, node_type: NodeType) -> Self {
         let mut v: Node<f64> = Node::new();
         // if (val.is_nan()) {
         //     panic!();
@@ -71,10 +84,11 @@ impl Node<f64> {
         v.data = val;
         v.prev = prev;
         v.op = op;
+        v.node_type = node_type;
         v
     }
 
-    pub fn new_op_l(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops, label: String) -> Self {
+    pub fn new_op_l(val: f64, _prev: Vec<usize>, prev: Vec<NodeRef>, op: Ops, label: String, node_type: NodeType) -> Self {
         // if (val.is_nan()) {
         //     panic!();
         // }
@@ -83,6 +97,7 @@ impl Node<f64> {
         v.prev = prev;
         v.op = op;
         v.label = Cow::from(label);
+        v.node_type = node_type;
         v
     }
 }
@@ -91,32 +106,35 @@ impl Graph<f64> {
     pub fn new() -> Self {
         Graph {
             nodes: vec![],
-            compute_nodes: vec![]
         }
     }
 }
 
 impl Graph<f64> {
-    pub fn add_val_l(&mut self, val: f64, label: String) -> NodeRef {
-        self.nodes.push(Node::new_v(val, label));
+    pub fn add_val_l(&mut self, val: f64, label: String, node_type: NodeType) -> NodeRef {
+        self.nodes.push(Node::new_v(val, label, node_type));
+        let id = self.nodes.len() - 1;
 
         NodeRef {
-            node_id: self.nodes.len() - 1,
+            node_id: id,
+            node_type,
         }
     }
 
-    pub fn add_val(&mut self, val: f64) -> NodeRef {
-        self.nodes.push(Node::new_v(val, "".to_string()));
+    pub fn add_val(&mut self, val: f64, node_type: NodeType) -> NodeRef {
+        self.nodes.push(Node::new_v(val, "".to_string(), node_type));
+        let id = self.nodes.len() - 1;
 
         NodeRef {
-            node_id: self.nodes.len() - 1,
+            node_id: id,
+            node_type,
         }
     }
 
     pub fn a_range(&mut self, l: u8) -> Vec<NodeRef> {
         let mut res = vec!();
         for i in 0..l {
-            res.push(self.add_val_l(f64::from(i), "".to_string()));
+            res.push(self.add_val_l(f64::from(i), "".to_string(), DataNode));
         }
 
         res
@@ -128,11 +146,15 @@ impl Graph<f64> {
         _prev: Vec<usize>,
         prev: Vec<NodeRef>,
         op: Ops,
+        node_type: NodeType,
     ) -> NodeRef {
-        self.nodes.push(Node::new_op(val, _prev, prev, op));
+
+        self.nodes.push(Node::new_op(val, _prev, prev, op, node_type));
+        let id = self.nodes.len() - 1;
 
         NodeRef {
-            node_id: self.nodes.len() - 1,
+            node_id: id,
+            node_type,
         }
     }
 
@@ -143,11 +165,14 @@ impl Graph<f64> {
         prev: Vec<NodeRef>,
         op: Ops,
         label: String,
+        node_type: NodeType
     ) -> NodeRef {
-        self.nodes.push(Node::new_op_l(val, _prev, prev, op, label));
+        self.nodes.push(Node::new_op_l(val, _prev, prev, op, label, node_type));
+        let id = self.nodes.len() - 1;
 
         NodeRef {
-            node_id: self.nodes.len() - 1,
+            node_id: id,
+            node_type,
         }
     }
 
@@ -156,10 +181,10 @@ impl Graph<f64> {
 
         let mut ws = vec!();
         for i in 0..l {
-            ws.push(self.add_val_l(rng.gen::<f64>(), format!("w_{}", i)));
+            ws.push(self.add_val_l(rng.gen::<f64>(), format!("w_{}", i), DataNode));
         }
 
-        let b = self.add_val_l(rng.gen::<f64>(), "b".to_string());
+        let b = self.add_val_l(rng.gen::<f64>(), "b".to_string(), DataNode);
 
         Neuron { ws, b, }
     }
@@ -167,10 +192,10 @@ impl Graph<f64> {
     pub fn neuron_ones(&mut self, l: usize) -> Neuron {
         let mut ws = vec!();
         for i in 0..l {
-            ws.push(self.add_val_l(1., format!("w_{}", i)));
+            ws.push(self.add_val_l(1., format!("w_{}", i), DataNode));
         }
 
-        let b = self.add_val_l(1., "b".to_string());
+        let b = self.add_val_l(1., "b".to_string(), DataNode);
 
         Neuron { ws, b, }
     }
@@ -227,13 +252,11 @@ impl Graph<f64> {
 
     pub fn get(&mut self, x: NodeRef) -> f64 {
         let node_id = x.node_id;
-
         return self.nodes.get(node_id).unwrap().data;
     }
 
     pub fn get_node(&mut self, x: NodeRef) -> Node<f64> {
         let node_id = x.node_id;
-
         return self.nodes.get(node_id).unwrap().clone();
     }
 
@@ -248,26 +271,26 @@ impl Graph<f64> {
     }
 
     pub fn get_grad(&mut self, x: NodeRef) -> f64 {
-        let node_id = x.node_id;
-
-        return self.nodes.get(node_id).unwrap().grad;
+        return self.get_node(x).grad;
     }
 
     pub fn set_grad(&mut self, x: NodeRef, grad: f64) {
-        let node_id = x.node_id;
-
-        self.nodes.get_mut(node_id).unwrap().grad = grad;
+        self.nodes.get_mut(x.node_id).unwrap().grad = grad;
     }
 
     pub fn set_data(&mut self, x: NodeRef, data: f64) {
-        let node_id = x.node_id;
-
-        self.nodes.get_mut(node_id).unwrap().data = data;
+        self.nodes.get_mut(x.node_id).unwrap().data = data;
     }
 
+    // Compute Operations
     pub fn add(&mut self, x1: NodeRef, x2: NodeRef, label: String) -> NodeRef {
+        // let mut a1 = self.get_node_mut(x1);
+        // let mut a2 = self.get_node_mut(x2);
         let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
         let a2 = self.nodes.get_mut(x2.node_id).unwrap().data;
+
+        // let a1 = self.get_node(x1).data;
+        // let a2 = self.get_node(x2).data;
 
         self.add_val_prev_l(
             a1 + a2,
@@ -275,10 +298,12 @@ impl Graph<f64> {
             vec![x1, x2],
             Ops::ADD,
             label,
+            ComputeNode,
         );
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode,
         }
     }
 
@@ -291,26 +316,32 @@ impl Graph<f64> {
             vec![x1.node_id, x2.node_id],
             vec![x1, x2],
             Ops::SUB,
+            ComputeNode,
         );
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode,
         }
     }
 
     pub fn mul(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
-        let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
-        let a2 = self.nodes.get_mut(x2.node_id).unwrap().data;
+        // let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
+        // let a2 = self.nodes.get_mut(x2.node_id).unwrap().data;
+        let a1 = self.get_node(x1).data;
+        let a2 = self.get_node(x2).data;
 
         self.add_val_prev(
             a1 * a2,
             vec![x1.node_id, x2.node_id],
             vec![x1, x2],
             Ops::MUL,
+            ComputeNode,
         );
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode,
         }
     }
 
@@ -323,10 +354,12 @@ impl Graph<f64> {
             vec![x1.node_id, x2.node_id],
             vec![x1, x2],
             Ops::DIV,
+            ComputeNode,
         );
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode,
         }
     }
 
@@ -339,26 +372,30 @@ impl Graph<f64> {
             vec![x1.node_id, x2.node_id],
             vec![x1, x2],
             Ops::EXP,
+            ComputeNode,
         );
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode,
         }
     }
 
     pub fn tanh(&mut self, x1: NodeRef) -> NodeRef {
-        let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
+        // let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
+        let a1 = self.get_node(x1).data;
 
         let t = (f64::powf(2.718, 2. * a1) - 1.) / (f64::powf(2.718, 2. * a1) + 1.);
 
-        self.add_val_prev(t, vec![x1.node_id], vec![x1], Ops::TANH);
+        self.add_val_prev(t, vec![x1.node_id], vec![x1], Ops::TANH, ComputeNode);
 
-        if t.is_nan() {
-            println!("---- in tanh {:?}, {:?}, {}, {}", self.get_node(x1), t, (f64::powf(2.718, 2. * a1) - 1.), (f64::powf(2.718, 2. * a1) + 1.));
-        }
+        // if t.is_nan() {
+        //     println!("---- in tanh {:?}, {:?}, {}, {}", self.get_node(x1), t, (f64::powf(2.718, 2. * a1) - 1.), (f64::powf(2.718, 2. * a1) + 1.));
+        // }
 
         NodeRef {
             node_id: self.nodes.len() - 1,
+            node_type: ComputeNode
         }
     }
 
@@ -423,7 +460,31 @@ impl Graph<f64> {
     // ==== Backward methods ====
 
     pub fn backward(&mut self) {
-        let node_list = self.nodes.clone();
+        let mut node_list = self.nodes.clone();
+
+        self.backward_retain_graph();
+
+        // at this point mark the nodes.
+        let mut c = 0;
+        for node in &node_list {
+            if node.node_type == ComputeNode {
+                c += 1;
+            }
+        }
+        println! {"Counter: {}", c}
+        node_list.retain(|i| i.node_type == DataNode);
+        c = 0;
+        for node in &node_list {
+            if node.node_type == ComputeNode {
+                c += 1;
+            }
+        }
+        println! {"Counter: {}", c}
+        self.nodes = node_list;
+    }
+
+    pub fn backward_retain_graph(&mut self) {
+        let mut node_list = self.nodes.clone();
 
         // println!("----");
         // for (i, node) in node_list.iter().enumerate() {
@@ -448,8 +509,6 @@ impl Graph<f64> {
                 }
             }
         }
-
-        // at this point mark the nodes.
     }
 
     fn add_backward(&mut self, i: usize) {

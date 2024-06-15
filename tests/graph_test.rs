@@ -3,18 +3,21 @@ mod tests {
     // use crate::graph::Graph;
 
     use twinkgrad::graph::Graph;
+    use twinkgrad::graph::NodeType::{DataNode, ComputeNode};
 
     #[test]
     fn graph_op() {
+        // The node type should not matter here for the raw ops. The user will not be using this
+        // interface directly.
         let g = &mut Graph::new();
 
-        let x1 = g.add_val_l(3., "x1".to_string());
-        let x2 = g.add_val_l(0.5, "x2".to_string());
+        let x1 = g.add_val_l(3., "x1".to_string(), ComputeNode);
+        let x2 = g.add_val_l(0.5, "x2".to_string(), DataNode);
 
-        let w1 = g.add_val_l(-3.0, "w1".to_string());
-        let w2 = g.add_val_l(1., "w2".to_string());
+        let w1 = g.add_val_l(-3.0, "w1".to_string(), ComputeNode);
+        let w2 = g.add_val_l(1., "w2".to_string(), ComputeNode);
 
-        let b = g.add_val_l(8., "b".to_string());
+        let b = g.add_val_l(8., "b".to_string(), DataNode);
 
         let l1 = g.mul(x1, w1);
         let l2 = g.mul(x2, w2);
@@ -33,13 +36,13 @@ mod tests {
     fn topo() {
         let g = &mut Graph::new();
 
-        let x1 = g.add_val_l(2., "x1".to_string());
-        let x2 = g.add_val_l(0.0, "x2".to_string());
+        let x1 = g.add_val_l(2., "x1".to_string(), DataNode);
+        let x2 = g.add_val_l(0.0, "x2".to_string(), DataNode);
 
-        let w1 = g.add_val_l(-3., "w1".to_string());
-        let w2 = g.add_val_l(1., "w2".to_string());
+        let w1 = g.add_val_l(-3., "w1".to_string(), DataNode);
+        let w2 = g.add_val_l(1., "w2".to_string(), DataNode);
 
-        let b = g.add_val_l(6.8813735870195432, "b".to_string());
+        let b = g.add_val_l(6.8813735870195432, "b".to_string(), DataNode);
 
         let l1 = g.mul(x1, w1);
         let l2 = g.mul(x2, w2);
@@ -52,7 +55,7 @@ mod tests {
 
         g.set_grad(o, 1.);
 
-        g.backward();
+        g.backward_retain_graph();
 
         assert_eq!(g.get_grad(n), 0.5000646207423279);
         assert_eq!(g.get_grad(la), 0.5000646207423279);
@@ -73,7 +76,7 @@ mod tests {
 
         let mut x = &mut vec!();
         for i in 0..3 {
-            x.push(g.add_val_l(f64::from(i) as f64, format!("x{}", i.to_string())));
+            x.push(g.add_val_l(f64::from(i) as f64, format!("x{}", i.to_string()), DataNode));
         }
 
         let y = g.apply_neuron(neuron, x);
@@ -83,7 +86,7 @@ mod tests {
 
         g.set_grad(y, 1.);
 
-        g.backward();
+        g.backward_retain_graph();
 
         println!("{:?}", g.nodes.get(12));
 
@@ -97,9 +100,9 @@ mod tests {
         let layer = &mut g.layer_ones(3, 4);
 
         let x = &vec!(
-            g.add_val_l(2., "".to_string()),
-            g.add_val_l(3., "".to_string()),
-            g.add_val_l(-1., "".to_string()),
+            g.add_val_l(2., "".to_string(), DataNode),
+            g.add_val_l(3., "".to_string(), DataNode),
+            g.add_val_l(-1., "".to_string(), DataNode),
         );
 
         let y = g.apply_layer(layer, x);
@@ -119,9 +122,9 @@ mod tests {
         let mlp = &mut g.mlp_ones(3, vec![4]);
 
         let x = &vec!(
-            g.add_val_l(2., "".to_string()),
-            g.add_val_l(3., "".to_string()),
-            g.add_val_l(-1., "".to_string()),
+            g.add_val_l(2., "".to_string(), DataNode),
+            g.add_val_l(3., "".to_string(), DataNode),
+            g.add_val_l(-1., "".to_string(), DataNode),
         );
 
         let y = g.apply_mlp(mlp, x);
@@ -139,7 +142,7 @@ mod tests {
         let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
         let x = &vec!(
-            g.add_val(2.), g.add_val(3.), g.add_val(-1.),
+            g.add_val(2., DataNode), g.add_val(3., DataNode), g.add_val(-1., DataNode),
         );
 
         let y = g.apply_mlp(mlp, x);
@@ -156,14 +159,14 @@ mod tests {
         let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
         let xs = &vec!(
-            vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
-            vec!(g.add_val(3.), g.add_val(-1.), g.add_val(0.5)),
-            vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
-            vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
+            vec!(g.add_val(2., DataNode), g.add_val(3., DataNode), g.add_val(-1., DataNode)),
+            vec!(g.add_val(3., DataNode), g.add_val(-1., DataNode), g.add_val(0.5, DataNode)),
+            vec!(g.add_val(0.5, DataNode), g.add_val(1., DataNode), g.add_val(1., DataNode)),
+            vec!(g.add_val(1., DataNode), g.add_val(1., DataNode), g.add_val(-1., DataNode)),
         );
 
         let ys = vec!(
-            g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+            g.add_val(1., DataNode), g.add_val(-1., DataNode), g.add_val(-1., DataNode), g.add_val(1., DataNode)
         );
 
         let mut ypred = vec!();
@@ -188,11 +191,11 @@ mod tests {
         let mlp = &mut g.mlp_ones(3, vec![4, 1]);
 
         let xs = vec!(
-            g.add_val_l(2., "x1".to_string()),
-            g.add_val_l(3., "x2".to_string()),
-            g.add_val_l(-1., "x3".to_string()));
+            g.add_val_l(2., "x1".to_string(), DataNode),
+            g.add_val_l(3., "x2".to_string(), DataNode),
+            g.add_val_l(-1., "x3".to_string(), DataNode));
 
-        let ys = g.add_val_l(1., "y1".to_string());
+        let ys = g.add_val_l(1., "y1".to_string(), DataNode);
 
         let mut loss;
 
@@ -201,20 +204,19 @@ mod tests {
             println!("ypred {:?}", g.get_node(ypred[0]));
 
             let a = g.sub(ys, ypred[0]);
-            let b = g.add_val(2.);
+            let b = g.add_val(2., DataNode);
             loss = g.pow(a, b);
             let k = g.get(ys) - g.get(ypred[0]);
 
             g.set_grad(loss, 1.);
 
-            g.backward();
+            g.backward_retain_graph();
 
             let total = g.nodes.len();
             println!("loss {:?}", g.get(loss));
             if i == 1 {
                 assert_eq!(g.get(loss), 0.);
             }
-
 
             for param in mlp.parameters() {
                 let data = g.get(param);

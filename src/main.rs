@@ -1,5 +1,6 @@
 use std::iter::zip;
 use crate::graph::Graph;
+use crate::graph::NodeType::{ComputeNode, DataNode};
 
 mod graph;
 mod neuron;
@@ -12,14 +13,14 @@ fn main() {
     let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
     let xs = &vec!(
-        vec!(g.add_val(2.), g.add_val(3.), g.add_val(-1.)),
-        vec!(g.add_val(3.), g.add_val(-1.), g.add_val(0.5)),
-        vec!(g.add_val(0.5), g.add_val(1.), g.add_val(1.)),
-        vec!(g.add_val(1.), g.add_val(1.), g.add_val(-1.)),
+        vec!(g.add_val(2., DataNode), g.add_val(3., DataNode), g.add_val(-1., DataNode)),
+        vec!(g.add_val(3., DataNode), g.add_val(-1., DataNode), g.add_val(0.5, DataNode)),
+        vec!(g.add_val(0.5, DataNode), g.add_val(1., DataNode), g.add_val(1., DataNode)),
+        vec!(g.add_val(1., DataNode), g.add_val(1., DataNode), g.add_val(-1., DataNode)),
     );
 
     let ys = vec!(
-        g.add_val(1.), g.add_val(-1.), g.add_val(-1.), g.add_val(1.)
+        g.add_val(1., DataNode), g.add_val(-1., DataNode), g.add_val(-1., DataNode), g.add_val(1., DataNode)
     );
 
     for _ in 0..42 {
@@ -32,11 +33,11 @@ fn main() {
             ypred[0][0], ypred[1][0], ypred[2][0], ypred[3][0]
         );
 
-        let mut loss = g.add_val(0.);
+        let mut loss = g.add_val(0., ComputeNode);
 
         for (i, j) in zip(ypreds, ys.clone()) {
             let a = g.sub(i, j);
-            let b = g.add_val(2.);
+            let b = g.add_val(2., ComputeNode);
             let c = g.pow(a, b);
             loss = g.add(loss, c, "".to_string());
         }
