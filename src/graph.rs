@@ -17,6 +17,36 @@ pub enum NodeType {
     ComputeNode,
 }
 
+// No strides because we're using vec for now.
+// Only in row major.
+pub struct Tensor<T> {
+    pub mem_block: Vec<T>,
+    pub dims: Vec<usize>
+}
+
+impl Tensor<f64> {
+    pub fn new(dims: Vec<usize>) -> Tensor<f64> {
+        let len = dims.iter().fold(1, |mut p, val| { p *= val; p});
+        Tensor {
+            mem_block: vec!(0.; len),
+            dims,
+        }
+    }
+
+    pub fn get(&self, index: Vec<usize>) -> f64 {
+        // Tied to row major
+        let mut t = self.dims.iter().fold(1, |mut p, val| {p *= val; p});
+        let mut val = 0;
+        for i in 0..index.len() {
+            t /= self.dims[i];
+            val += index[i] * t;
+        }
+
+        self.mem_block[val]
+    }
+
+}
+
 #[derive(Clone, Debug)]
 pub struct Node<T> {
     pub label: Cow<'static, str>,
@@ -138,6 +168,24 @@ impl Graph<f64> {
         }
 
         res
+    }
+
+    pub fn tensor(&mut self, vec: Vec<f64>) -> Vec<NodeRef> {
+        let mut output = vec!();
+        for val in vec {
+            output.push(self.add_val(val, DataNode));
+        }
+
+        return output;
+    }
+
+    pub fn tensor2d(&mut self, vec: Vec<f64>) -> Vec<NodeRef> {
+        let mut output = vec!();
+        for val in vec {
+            output.push(self.add_val(val, DataNode));
+        }
+
+        return output;
     }
 
     pub fn add_val_prev(
@@ -345,6 +393,75 @@ impl Graph<f64> {
         }
     }
 
+    fn matmul2d(&mut self, x1: &Tensor<f64>, x2: &Tensor<f64>) -> Tensor<f64> {
+        let i = x1.dims[0]; let j = x1.dims[1];
+        let jj = x2.dims[0]; let k = x2.dims[1];
+
+        assert_eq!(j, jj, "Inner dims not eq {:?}, {:?}.", x1.dims, x2.dims);
+
+        let mut res = vec!(0.; i*k);
+
+        for _i in 0..i {
+            for _k in 0..k {
+                for _j in 0..j {
+                    let x1_pos = _i * j + _j;
+                    let x2_pos = _j * k + _k;
+                    let res_pos = _i * i + _k;
+
+                    res[res_pos] += x1.mem_block[x1_pos] * x2.mem_block[x2_pos];
+                }
+            }
+        }
+
+        Tensor {
+            mem_block: res,
+            dims: vec!(x1.dims[0], x2.dims[1]),
+        }
+    }
+
+    pub fn matmul(&mut self, x1: &Tensor<f64>, x2: &Tensor<f64>) -> Tensor<f64> {
+        // TODO broadcast check
+        // TODO contraction
+
+        if x1.dims.len() == 2 {
+            return self.matmul2d(x1, x2);
+        }
+
+        let i = x1.dims[x1.dims.len()-2];
+        let j = x1.dims[x1.dims.len()-1];
+        let jj = x2.dims[x2.dims.len()-2];
+        let k = x2.dims[x2.dims.len()-1];
+
+        assert_eq!(j, jj, "Inner dims not eq {:?}, {:?}.", x1.dims, x2.dims);
+
+        let batch = x1.dims[0..x1.dims.len()-2].iter().fold(1, |mut p, v| {p *= v; p});
+
+        let x1_size = i*j; let x2_size = jj*k; let res_size = i*k;
+
+        let mut res = vec!(0.; batch * i * k);
+        for b in 0..batch {
+            for _i in 0..i {
+                for _k in 0..k {
+                    for _j in 0..j {
+                        let x1_pos = b * x1_size + _i * j + _j;
+                        let x2_pos = b * x2_size + _j * k + _k;
+                        let res_pos = b * res_size + _i * k + _k;
+
+                        res[res_pos] += x1.mem_block[x1_pos] * x2.mem_block[x2_pos];
+                    }
+                }
+            }
+        }
+
+        let mut new_dims = x1.dims[0..x1.dims.len()-2].to_vec();
+        new_dims.extend([i, k]);
+
+        Tensor {
+            mem_block: res,
+            dims: new_dims,
+        }
+    }
+
     pub fn div(&mut self, x1: NodeRef, x2: NodeRef) -> NodeRef {
         let a1 = self.nodes.get_mut(x1.node_id).unwrap().data;
         let a2 = self.nodes.get_mut(x2.node_id).unwrap().data;
@@ -455,6 +572,48 @@ impl Graph<f64> {
 
         // return res[1..res.len()].to_vec();
         return res.last().unwrap().clone();
+    }
+
+    pub fn apply_conv1d(&mut self, x: Vec<NodeRef>, k: Vec<NodeRef>) -> Vec<NodeRef> {
+        let mut res = vec!();
+
+        let xl = x.len();
+        let kl = k.len();
+
+        let max_i = xl - kl + 1;
+
+        for i in 0..max_i {
+            let mut s = self.add_val(0., ComputeNode);
+            for j in 0..kl {
+                let _s = self.mul(x[i+j], k[j]);
+                s = self.add(s, _s, "conv_add".to_string());
+            }
+
+            res.push(s);
+        }
+
+        return res;
+    }
+
+    pub fn apply_conv2d(&mut self, x: Vec<NodeRef>, k: Vec<NodeRef>) -> Vec<NodeRef> {
+        let mut res = vec!();
+
+        let xl = x.len();
+        let kl = k.len();
+
+        let max_i = xl - kl + 1;
+
+        for i in 0..max_i {
+            let mut s = self.add_val(0., ComputeNode);
+            for j in 0..kl {
+                let _s = self.mul(x[i+j], k[j]);
+                s = self.add(s, _s, "conv_add".to_string());
+            }
+
+            res.push(s);
+        }
+
+        return res;
     }
 
     // ==== Backward methods ====

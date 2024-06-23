@@ -13,15 +13,13 @@ fn main() {
     let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
     let xs = &vec!(
-        vec!(g.add_val(2., DataNode), g.add_val(3., DataNode), g.add_val(-1., DataNode)),
-        vec!(g.add_val(3., DataNode), g.add_val(-1., DataNode), g.add_val(0.5, DataNode)),
-        vec!(g.add_val(0.5, DataNode), g.add_val(1., DataNode), g.add_val(1., DataNode)),
-        vec!(g.add_val(1., DataNode), g.add_val(1., DataNode), g.add_val(-1., DataNode)),
+        g.tensor(vec!(2., 3., -1.)),
+        g.tensor(vec!(3., -1., 0.5)),
+        g.tensor(vec!(0.5, 1., 1.)),
+        g.tensor(vec!(1., 1., -1.)),
     );
 
-    let ys = vec!(
-        g.add_val(1., DataNode), g.add_val(-1., DataNode), g.add_val(-1., DataNode), g.add_val(1., DataNode)
-    );
+    let ys = g.tensor(vec!(1., -1., -1., 1.));
 
     for _ in 0..42 {
         let mut ypred = vec!();

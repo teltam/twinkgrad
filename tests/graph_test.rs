@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
-    // use crate::graph::Graph;
-
-    use twinkgrad::graph::Graph;
+    use mdarray::{view, View};
+    use twinkgrad::graph::{Graph, Tensor};
     use twinkgrad::graph::NodeType::{DataNode, ComputeNode};
 
     #[test]
@@ -159,24 +158,18 @@ mod tests {
         let mlp = &mut g.mlp_ones(3, vec![4, 3, 1]);
 
         let xs = &vec!(
-            vec!(g.add_val(2., DataNode), g.add_val(3., DataNode), g.add_val(-1., DataNode)),
-            vec!(g.add_val(3., DataNode), g.add_val(-1., DataNode), g.add_val(0.5, DataNode)),
-            vec!(g.add_val(0.5, DataNode), g.add_val(1., DataNode), g.add_val(1., DataNode)),
-            vec!(g.add_val(1., DataNode), g.add_val(1., DataNode), g.add_val(-1., DataNode)),
+            g.tensor(vec!(2., 3., -1.)),
+            g.tensor(vec!(3., -1., 0.5)),
+            g.tensor(vec!(0.5, 1., 1.)),
+            g.tensor(vec!(1., 1., -1.)),
         );
 
-        let ys = vec!(
-            g.add_val(1., DataNode), g.add_val(-1., DataNode), g.add_val(-1., DataNode), g.add_val(1., DataNode)
-        );
+        let ys = g.tensor(vec!(1., -1., -1., 1.));
 
         let mut ypred = vec!();
         for i in 0..xs.len() {
             ypred.push(g.apply_mlp(mlp, &xs[i]));
         }
-
-        // for i in 0..xs.len() {
-        //     assert_eq!(ypred[i][2].len(), 1);
-        // }
 
         assert_eq!(g.get(ypred[0][0]), 0.9993283770985828);
         assert_eq!(g.get(ypred[1][0]), 0.9993283719860206);
@@ -224,5 +217,129 @@ mod tests {
                 g.set_data(param, new_data);
             }
         }
+    }
+
+    #[test]
+    fn tensor_index() {
+        let mut x = Tensor::new(vec!(2, 4, 5));
+
+        // 1st block, 3rd row, 4th col
+        // 1 * (4*5) + 3 * (5) + 4 = 39
+        x.mem_block[0] = 11.;
+        x.mem_block[20] = 12.;
+        x.mem_block[39] = 10.;
+
+        // assert_eq!(x.get(vec!(0, 0, 0)), 11.);
+        assert_eq!(x.get(vec!(1, 0, 0)), 12.);
+        // assert_eq!(x.get(vec!(1, 3, 4)), 10.);
+    }
+
+    #[test]
+    fn tensor_mul2d() {
+        let mut x = &mut Tensor::new(vec!(3, 4));
+        for i in 0..x.mem_block.len() {
+            x.mem_block[i] = i as f64;
+        }
+
+        let mut y = &mut Tensor::new(vec!(4, 3));
+        for i in 0..y.mem_block.len() {
+            y.mem_block[i] = i as f64;
+        }
+        println!("{}", y.get(vec!(1, 1)));
+
+        let g = &mut Graph::new();
+
+        let z = g.matmul(x, y);
+
+        assert_eq!(z.mem_block, vec!(42., 48., 54., 114., 136., 158., 186., 224., 262.));
+
+        assert_eq!(z.get(vec!(0, 0)), 42.);
+        assert_eq!(z.get(vec!(0, 1)), 48.);
+        assert_eq!(z.get(vec!(0, 2)), 54.);
+        assert_eq!(z.get(vec!(1, 0)), 114.);
+        assert_eq!(z.get(vec!(1, 1)), 136.);
+        assert_eq!(z.get(vec!(1, 2)), 158.);
+        assert_eq!(z.get(vec!(2, 0)), 186.);
+        assert_eq!(z.get(vec!(2, 1)), 224.);
+        assert_eq!(z.get(vec!(2, 2)), 262.);
+    }
+
+    #[test]
+    fn tensor_mul() {
+        let mut x = &mut Tensor::new(vec!(2, 3, 2));
+        for i in 0..x.mem_block.len() {
+            x.mem_block[i] = i as f64;
+        }
+
+        let mut y = &mut Tensor::new(vec!(2, 2, 2));
+        for i in 0..y.mem_block.len() {
+            y.mem_block[i] = i as f64;
+        }
+
+        let g = &mut Graph::new();
+
+        let z = g.matmul(x, y);
+
+        assert_eq!(z.mem_block, vec!(
+            2., 3., 6., 11., 10., 19.,
+            66., 79., 86., 103., 106., 127.,
+        ));
+
+        assert_eq!(z.dims, vec!(2, 3, 2));
+
+        assert_eq!(z.get(vec!(0, 0, 0)), 2.);
+        assert_eq!(z.get(vec!(0, 0, 1)), 3.);
+        assert_eq!(z.get(vec!(0, 1, 0)), 6.);
+        assert_eq!(z.get(vec!(0, 1, 1)), 11.);
+        assert_eq!(z.get(vec!(0, 2, 0)), 10.);
+        assert_eq!(z.get(vec!(0, 2, 1)), 19.);
+
+        assert_eq!(z.get(vec!(1, 0, 0)), 66.);
+        assert_eq!(z.get(vec!(1, 0, 1)), 79.);
+        assert_eq!(z.get(vec!(1, 1, 0)), 86.);
+        assert_eq!(z.get(vec!(1, 1, 1)), 103.);
+        assert_eq!(z.get(vec!(1, 2, 0)), 106.);
+        assert_eq!(z.get(vec!(1, 2, 1)), 127.);
+    }
+
+    #[test]
+    fn conv1d() {
+        let g = &mut Graph::new();
+
+        let x = g.tensor(vec!(1., 1., 2., 1.));
+
+        let k = g.tensor(vec!(1., 0., -1.));
+
+        let conv = g.apply_conv1d(x, k);
+
+        assert_eq!(conv.len(), 2);
+        assert_eq!(g.get(conv[0]), -1.);
+        assert_eq!(g.get(conv[1]), 0.);
+    }
+
+    #[test]
+    fn conv2d() {
+        let g = &mut Graph::new();
+
+        let x = view![
+            [
+                [1, 2],
+                [2, 3]
+            ],
+            [
+                [1, 2],
+                [2, 3]
+            ]
+        ];
+
+        let x = g.tensor(vec!(1., 1., 2., 1.));
+
+        let k = g.tensor(vec!(1., 0., -1.));
+
+        let conv = g.apply_conv1d(x, k);
+
+        assert_eq!(conv.len(), 2);
+        assert_eq!(g.get(conv[0]), -1.);
+        assert_eq!(g.get(conv[1]), 0.);
     }
 }
